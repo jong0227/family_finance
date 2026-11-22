@@ -56,6 +56,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         await ref.read(householdIdProvider.notifier).set(id);
       });
 
+  /// 초대 코드가 없으면 새 가족 묶음을 만든다. 코드는 더보기에서 볼 수 있다.
+  Future<void> _skip() => _run(() async {
+        final user = ref.read(authServiceProvider).user;
+        if (user == null) throw StateError('로그인이 필요해요');
+        final id = await ref.read(sharedStoreProvider).createHousehold(user.uid);
+        await ref.read(householdIdProvider.notifier).set(id);
+      });
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -88,6 +96,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 ),
                 const SizedBox(height: AppGap.sm),
                 FilledButton(onPressed: _busy ? null : _join, child: const Text('연결')),
+                const SizedBox(height: AppGap.xs),
+                TextButton(
+                  onPressed: _busy ? null : _skip,
+                  child: const Text('코드 없이 새로 시작 (건너뛰기)'),
+                ),
               ],
               if (_error != null) ...[
                 const SizedBox(height: AppGap.md),

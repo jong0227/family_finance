@@ -4,7 +4,9 @@ import 'package:ninedogs_core/ninedogs_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/auth_service.dart';
+import '../data/finance_store.dart';
 import '../data/shared/shared_household_store.dart';
+import '../domain/finance_models.dart';
 
 /// main() 에서 미리 열어 덮어쓴다.
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) => throw UnimplementedError());
@@ -40,4 +42,48 @@ final peopleProvider = StreamProvider<People>((ref) {
   final id = ref.watch(householdIdProvider);
   if (id == null) return Stream.value(People.defaults);
   return ref.watch(sharedStoreProvider).watchPeople(id);
+});
+
+/// 가구 초대 코드 (더보기에서 배우자에게 알려줄 때).
+final inviteCodeProvider = FutureProvider<String?>((ref) {
+  final id = ref.watch(householdIdProvider);
+  if (id == null) return Future.value(null);
+  return ref.watch(sharedStoreProvider).inviteCodeOf(id);
+});
+
+final financeStoreProvider = Provider<FinanceStore>((ref) => FinanceStore());
+
+final monthsProvider = StreamProvider<List<MonthAgg>>((ref) {
+  final id = ref.watch(householdIdProvider);
+  if (id == null) return Stream.value(const []);
+  return ref.watch(financeStoreProvider).watchMonths(id);
+});
+
+final planProvider = StreamProvider<Plan?>((ref) {
+  final id = ref.watch(householdIdProvider);
+  if (id == null) return Stream.value(null);
+  return ref.watch(financeStoreProvider).watchPlan(id);
+});
+
+/// 화면에서 고른 달. null 이면 데이터가 있는 가장 최근 달.
+class SelectedMonthNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+  void set(String month) => state = month;
+}
+
+final selectedMonthProvider = NotifierProvider<SelectedMonthNotifier, String?>(SelectedMonthNotifier.new);
+
+/// 실제로 보여줄 달 (고른 달, 없으면 최근 달).
+final currentMonthProvider = Provider<String?>((ref) {
+  final picked = ref.watch(selectedMonthProvider);
+  if (picked != null) return picked;
+  final months = ref.watch(monthsProvider).value ?? const [];
+  return months.isEmpty ? null : months.last.month;
+});
+
+final transactionsProvider = StreamProvider.family<List<Tx>, String>((ref, month) {
+  final id = ref.watch(householdIdProvider);
+  if (id == null) return Stream.value(const []);
+  return ref.watch(financeStoreProvider).watchTransactions(id, month);
 });
