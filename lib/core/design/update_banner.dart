@@ -4,7 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/update.dart';
 import 'tokens.dart';
 
-/// 새 버전이 있으면 화면 맨 위에 한 줄로 뜬다. 누르면 내려받아 설치 화면이 열린다.
+/// 새 버전이 있으면 화면 맨 위에 한 줄로 뜬다(InfoBanner, `info` 면). 누르면 내려받아 설치 화면이 열린다.
+/// 없으면 자리를 차지하지 않는다.
 class UpdateBanner extends ConsumerWidget {
   const UpdateBanner({super.key});
 
@@ -21,16 +22,20 @@ class UpdateBanner extends ConsumerWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppGap.page, vertical: AppGap.sm),
           child: Row(children: [
-            Icon(Icons.system_update_alt, size: 18, color: p.info),
+            Icon(Icons.system_update_alt, size: AppSize.icon, color: p.info),
             const SizedBox(width: AppGap.sm),
             Expanded(
               child: Text(
                 progress == null ? '새 버전 ${release.version} — 눌러서 업데이트' : '내려받는 중 ${(progress * 100).toStringAsFixed(0)}%',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: p.info),
+                style: AppText.label.copyWith(color: p.info).tnum,
               ),
             ),
             if (progress != null)
-              SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, value: progress)),
+              SizedBox(
+                width: AppSize.icon,
+                height: AppSize.icon,
+                child: CircularProgressIndicator(strokeWidth: AppSize.planTick, value: progress, color: p.info),
+              ),
           ]),
         ),
       ),

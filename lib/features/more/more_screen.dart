@@ -16,16 +16,16 @@ class MoreScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(userProvider).value;
     final code = ref.watch(inviteCodeProvider).value;
-    final t = Theme.of(context).textTheme;
+    final p = context.palette;
     return ListView(children: [
       const PageHeader('더보기'),
-      const SectionTitle('가족'),
-      Panel(
+      SectionCard(
+        title: '가족',
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('가족 코드', style: t.labelMedium),
-          const SizedBox(height: 2),
           Row(children: [
-            Text(code ?? '…', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: 3)),
+            Text('가족 코드', style: AppText.caption.copyWith(color: p.textMuted)),
+            const SizedBox(width: AppGap.sm),
+            Text(code ?? '…', style: AppText.code.tnum),
             const Spacer(),
             if (code != null)
               TextButton(
@@ -36,15 +36,15 @@ class MoreScreen extends ConsumerWidget {
                 child: const Text('복사'),
               ),
           ]),
-          Text('배우자는 이 앱과 Ninedogs 모두 구글로 로그인한 뒤 이 코드를 넣으면 같은 화면을 봐요', style: t.labelSmall),
+          Text('배우자는 이 앱과 Ninedogs 모두 구글로 로그인한 뒤 이 코드를 넣으면 같은 화면을 봐요',
+              style: AppText.caption.copyWith(color: p.textSub)),
         ]),
       ),
-      const SectionTitle('앱'),
-      Panel(child: _UpdateTile()),
-      const SectionTitle('계정'),
-      Panel(
+      SectionCard(title: '앱', child: _UpdateTile()),
+      SectionCard(
+        title: '계정',
         child: Row(children: [
-          Expanded(child: Text(user?.email ?? '', style: t.bodyMedium)),
+          Expanded(child: Text(user?.email ?? '', style: AppText.body, overflow: TextOverflow.ellipsis)),
           TextButton(
             onPressed: () async {
               await ref.read(householdIdProvider.notifier).set(null);
@@ -54,10 +54,7 @@ class MoreScreen extends ConsumerWidget {
           ),
         ]),
       ),
-      Padding(
-        padding: const EdgeInsets.all(AppGap.page),
-        child: Text('계획 편집 · 뱅크샐러드 가져오기 · 알림 읽기는 다음 단계에서 붙어요', style: t.labelSmall),
-      ),
+      const FootNote('계획 편집 · 뱅크샐러드 가져오기 · 알림 읽기는 다음 단계에서 붙어요'),
     ]);
   }
 }
@@ -68,7 +65,7 @@ class _UpdateTile extends ConsumerWidget {
     final version = ref.watch(appVersionProvider).value ?? '';
     final update = ref.watch(availableUpdateProvider);
     final progress = ref.watch(updateProgressProvider);
-    final t = Theme.of(context).textTheme;
+    final p = context.palette;
     final release = update.value;
     final status = update.isLoading
         ? '확인 중…'
@@ -80,8 +77,8 @@ class _UpdateTile extends ConsumerWidget {
     return Row(children: [
       Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('버전 $version', style: t.bodyMedium),
-          Text(status, style: t.labelSmall),
+          Text('버전 $version', style: AppText.body.tnum),
+          Text(status, style: AppText.caption.copyWith(color: release != null ? p.info : p.textSub).tnum),
         ]),
       ),
       if (release != null && progress == null)

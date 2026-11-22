@@ -29,7 +29,6 @@ class _LivingDetailScreenState extends ConsumerState<LivingDetailScreen> {
     final plan = ref.watch(planProvider).value?.livingPlan[group] ?? 0;
     final current = ref.watch(currentMonthProvider);
     final p = context.palette;
-    final t = Theme.of(context).textTheme;
 
     return Scaffold(
       appBar: AppBar(title: Text(livingLabels[group] ?? group)),
@@ -65,34 +64,45 @@ class _LivingDetailScreenState extends ConsumerState<LivingDetailScreen> {
           for (final x in shown) {
             merchants[x.merchantKey] = (merchants[x.merchantKey] ?? 0) - x.amount;
           }
-          final topMerchants = merchants.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-          final maxY = [...byMonth.values, plan].fold<int>(0, (a, b) => a > b ? a : b) / 10000 * 1.15;
+          final topMerchants = (merchants.entries.toList()..sort((a, b) => b.value.compareTo(a.value)))
+              .take(focus == null ? 5 : 10)
+              .toList();
+          final maxY = [...byMonth.values, plan].fold<int>(0, (a, b) => a > b ? a : b) / 10000 * AppChart.headroom;
+          final over = plan > 0 && total > plan * 1.05;
+          final axis = AppText.micro.copyWith(color: p.textMuted).tnum;
 
           return ListView(padding: const EdgeInsets.only(bottom: AppGap.xl), children: [
             MonthSwitcher(month: month, months: monthList, onChanged: ref.read(selectedMonthProvider.notifier).set),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppGap.page),
+              padding: const EdgeInsets.symmetric(horizontal: AppGap.page, vertical: AppGap.xs),
               child: Row(children: [
                 KpiTile(
                   label: '이 달',
                   value: man(total),
-                  sub: plan > 0 ? '계획 ${man(plan)}' : null,
-                  valueColor: plan > 0 && total > plan * 1.05 ? p.over : null,
+                  sub: plan <= 0
+                      ? null
+                      : over
+                          ? '계획 ${man(plan)} · ${man(total - plan)} 초과'
+                          : '계획 ${man(plan)}',
+                  valueColor: over ? p.over : null,
                 ),
                 const SizedBox(width: AppGap.sm),
                 KpiTile(label: '최근 6개월 평균', value: man(avg6), sub: plan > 0 ? '계획의 ${(avg6 * 100 / plan).toStringAsFixed(0)}%' : null),
               ]),
             ),
-            const SectionTitle('월별 (만 원)', trailing: '점선 = 계획'),
-            Panel(
+            SectionCard(
+              title: '월별',
+              trailing: '점선 = 계획 · 넘친 부분 = 빨강',
               child: SizedBox(
-                height: 160,
+                height: AppChart.heightSm,
                 child: BarChart(BarChartData(
                   maxY: maxY <= 0 ? 1 : maxY,
                   borderData: FlBorderData(show: false),
                   gridData: const FlGridData(show: false),
                   extraLinesData: ExtraLinesData(horizontalLines: [
-                    if (plan > 0) HorizontalLine(y: plan / 10000, color: p.ink, strokeWidth: 1, dashArray: [4, 3]),
+                    if (plan > 0)
+                      HorizontalLine(
+                          y: plan / 10000, color: p.ink, strokeWidth: AppChart.planStroke, dashArray: AppChart.planDash),
                   ]),
                   titlesData: FlTitlesData(
                     topTitles: const AxisTitles(),
@@ -100,9 +110,8 @@ class _LivingDetailScreenState extends ConsumerState<LivingDetailScreen> {
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 30,
-                        getTitlesWidget: (v, _) =>
-                            Text(v.toStringAsFixed(0), style: TextStyle(fontSize: 10, color: p.textMuted)),
+                        reservedSize: AppChart.axisReserved,
+                        getTitlesWidget: (v, _) => Text('${v.toStringAsFixed(0)}만', style: axis),
                       ),
                     ),
                     bottomTitles: AxisTitles(
@@ -111,60 +120,63 @@ class _LivingDetailScreenState extends ConsumerState<LivingDetailScreen> {
                         getTitlesWidget: (v, _) {
                           final i = v.toInt();
                           if (i < 0 || i >= last12.length) return const SizedBox.shrink();
-                          return Text('${int.parse(last12[i].substring(5))}', style: TextStyle(fontSize: 10, color: p.textMuted));
+                          final now = last12[i] == month;
+                          return Text('${int.parse(last12[i].substring(5))}',
+                              style: now ? axis.copyWith(color: p.ink, fontWeight: FontWeight.w600) : axis);
                         },
                       ),
                     ),
                   ),
+                  // 6.2: 고른 달만 진한 잉크, 지난 달은 옅게. 계획을 넘으면 넘은 부분만 over.mark.
                   barGroups: [
-                    for (var i = 0; i < last12.length; i++)
-                      BarChartGroupData(x: i, barRods: [
-                        BarChartRodData(
-                          toY: byMonth[last12[i]]! / 10000,
-                          width: 12,
-                          borderRadius: BorderRadius.circular(3),
-                          color: last12[i] == month
-                              ? (plan > 0 && byMonth[last12[i]]! > plan * 1.05 ? p.over : p.info)
-                              : p.textSub.withValues(alpha: 0.45),
-                        ),
-                      ]),
+                    for (var i = 0; i < last12.length; i++) _bar(context, i, byMonth[last12[i]]!, plan, last12[i] == month),
                   ],
                 )),
               ),
             ),
-            SectionTitle('무엇에 썼나', trailing: focus == null ? '눌러서 그 항목만 보기' : '다시 누르면 전체'),
-            Panel(
-              padding: const EdgeInsets.symmetric(horizontal: AppGap.md, vertical: AppGap.xs),
+            SectionCard(
+              title: '무엇에 썼나',
+              trailing: focus == null ? '눌러서 그 항목만 보기' : '다시 누르면 전체',
+              list: true,
               child: Column(children: [
-                for (final e in partList)
+                for (final (i, e) in partList.indexed)
                   AmountRow(
                     title: e.key,
                     sub: total > 0 ? '${(e.value * 100 / total).toStringAsFixed(0)}%' : null,
-                    amount: won(e.value),
+                    amount: man(e.value),
                     selected: focus == e.key,
                     dimmed: focus != null && focus != e.key,
+                    divider: i < partList.length - 1,
                     onTap: () => setState(() => _focus = focus == e.key ? null : e.key),
                   ),
-                if (partList.isEmpty) Padding(padding: const EdgeInsets.all(AppGap.md), child: Text('이 달 거래가 없어요', style: t.labelMedium)),
+                if (partList.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(AppGap.xs),
+                    child: Text('이 달 거래가 없어요', style: AppText.body.copyWith(color: p.textSub)),
+                  ),
               ]),
             ),
-            SectionTitle(focus == null ? '많이 쓴 곳' : '많이 쓴 곳 · $focus', trailing: focus == null ? null : won(shownTotal)),
-            Panel(
-              padding: const EdgeInsets.symmetric(horizontal: AppGap.md, vertical: AppGap.xs),
+            SectionCard(
+              title: focus == null ? '많이 쓴 곳' : '많이 쓴 곳 · $focus',
+              trailing: focus == null ? null : man(shownTotal),
+              list: true,
               child: Column(children: [
-                for (final e in topMerchants.take(focus == null ? 5 : 10)) AmountRow(title: e.key, amount: won(e.value)),
+                for (final (i, e) in topMerchants.indexed)
+                  AmountRow(title: e.key, amount: man(e.value), divider: i < topMerchants.length - 1),
               ]),
             ),
-            SectionTitle(focus == null ? '거래' : '거래 · $focus', trailing: '${shown.length}건'),
-            Panel(
-              padding: const EdgeInsets.symmetric(horizontal: AppGap.md, vertical: AppGap.xs),
+            SectionCard(
+              title: focus == null ? '거래' : '거래 · $focus',
+              trailing: '${shown.length}건',
+              list: true,
               child: Column(children: [
-                for (final x in shown)
+                for (final (i, x) in shown.indexed)
                   AmountRow(
                     title: x.merchant,
                     sub: '${x.date.substring(5).replaceAll('-', '/')} · ${x.livingPart} · ${x.payment}',
-                    amount: won(-x.amount),
+                    amount: txWon(x.amount),
                     amountColor: x.amount > 0 ? p.under : null,
+                    divider: i < shown.length - 1,
                   ),
               ]),
             ),
@@ -172,5 +184,24 @@ class _LivingDetailScreenState extends ConsumerState<LivingDetailScreen> {
         },
       ),
     );
+  }
+
+  static BarChartGroupData _bar(BuildContext context, int x, int amount, int plan, bool now) {
+    final p = context.palette;
+    final y = amount / 10000, planY = plan / 10000;
+    final base = now ? p.ink : p.ink.withValues(alpha: AppAlpha.barFill);
+    final overColor = now ? p.overMark : p.overMark.withValues(alpha: AppAlpha.barFill);
+    final overflow = plan > 0 && amount > plan * 1.05;
+    return BarChartGroupData(x: x, barRods: [
+      BarChartRodData(
+        toY: y,
+        width: AppChart.barWidth,
+        color: base,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.xs)),
+        rodStackItems: overflow
+            ? [BarChartRodStackItem(0, planY, base), BarChartRodStackItem(planY, y, overColor)]
+            : const [],
+      ),
+    ]);
   }
 }

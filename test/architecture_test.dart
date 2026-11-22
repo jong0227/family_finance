@@ -22,6 +22,16 @@ void main() {
     expect(bad, isEmpty);
   });
 
+  test('화면(features)은 색·글자 크기를 직접 쓰지 않는다 — 디자인 토큰만 (CLAUDE.md 절대 규칙 7)', () {
+    final raw = RegExp(r'Color\(0x|Colors\.(?!transparent)|fontSize:|FontWeight\.bold|FontWeight\.normal');
+    final bad = [
+      for (final f in files)
+        if (norm(f).contains('lib/features/'))
+          for (final m in raw.allMatches(f.readAsStringSync())) '${f.path}: ${m.group(0)}',
+    ];
+    expect(bad, isEmpty);
+  });
+
   test('공유 문서 경로는 data/shared 에서만 쓴다', () {
     final sharedPath = RegExp(r"collection\('(households|inviteCodes)'\)");
     final bad = [

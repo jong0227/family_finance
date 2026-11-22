@@ -193,7 +193,7 @@ OKLCH로 계열마다 밝기를 같게 맞춰(라이트 mark 0.52 / 0.635 / 0.75
 
 ### 3.5 사람·카드·계좌
 
-- **사람(부부·자녀) 표시**는 색이 아니라 이니셜 원형 배지(`ink` 테두리, 16px)로. 분류색과 경쟁하지 않게.
+- **구독 주인 배지**는 사용자 지정 사람색(a = 파랑, b = 빨강, Ninedogs와 같은 값)의 옅은 면 + 이름. `PersonColors`(tokens.dart) 한 곳에서만 쓰고, 다른 곳(가족·자녀 표시 등)은 색 없이 `ink` 테두리 이니셜 배지로.
 - **카드·계좌**는 색 없이 아이콘 + 짧은 이름("A카드", "생활비 통장"). 실제 카드사 브랜드색은 쓰지 않는다(브랜드 흉내 금지 + 화면이 카드색 축제가 된다).
 
 ### 3.6 접근성 대비 기준
@@ -786,3 +786,50 @@ Ninedogs `ServiceBrowser`와 스포티파이식 온보딩을 이어받는다. "�
 - 글꼴 — [Pretendard (GitHub)](https://github.com/orioncactus/pretendard), [Pretendard 숫자 가변폭과 tnum (블로그)](https://donghyk2.tistory.com/174)
 - 이어받은 체계 — `family_timetable/docs/DESIGN_SYSTEM.md`, `family_timetable/lib/core/design/`,
   `Ninedogs/CLAUDE.md`, `Ninedogs/lib/core/theme/`, `Ninedogs/lib/widgets/{category_colors,service_icon,service_browser,krw_amount_text,monthly_amount_text}.dart`, `Ninedogs/lib/features/{onboarding,calendar}/`
+
+---
+
+## 12. 구현 점검 (2026-11-22)
+
+`lib/core/design/*`·`lib/features/*`를 이 문서와 대조했다. 화면 구조·기능·데이터 흐름은 그대로 두고 보이는 모양만 고쳤다.
+
+### 12.1 고친 것
+
+| # | 영역 | 발견한 불일치 | 고친 것 |
+|---|---|---|---|
+| 1 | 글자 스케일 | `AppText`가 없고 화면마다 `fontSize: 11/12/13/18/20`을 직접 씀. 테마 글자가 17·15·14로 4.3 표와 다름. 앱 바 제목 16(규칙 14) | `AppText`(micro~hero 10단계 + `code`)를 4.3 표대로 만들고 테마 `textTheme`·앱 바(14 w700)·내비·칩·버튼이 이것을 쓰게 함. 화면의 `fontSize` 0건 |
+| 2 | 글꼴 자리 | Pretendard 설정 자리 없음 | `AppText.fontFamily`(지금 `null`)·`fontFamilyFallback`(Noto Sans KR)을 테마에 연결. 번들 때 한 줄만 바꾸면 됨 |
+| 3 | 숫자 | 표 숫자(tnum)를 행 금액·KPI에만 부분 적용. KPI 큰 숫자에도 tnum(규칙은 비례폭). 단위(만·원)가 숫자와 같은 크기 | `MoneyText` 추가: 숫자 tnum + 끝 단위는 한 단계 작게 `textSub`. KPI는 비례폭. 표·축·보조줄 숫자는 `.tnum` |
+| 4 | 금액 표기 | 음수 하이픈(`-`), 환불이 `-15,000원`(초록)으로 보임, 1억 이상 `12000만`, `99.95만`이 `100.0만` | `won`/`man`이 마이너스(U+2212), `txWon`(지출 부호 없음·환불 `+`), `1.2억`, 경계 반올림. 테스트 추가 |
+| 5 | 단위 일관성 | 분류 합계·많이 쓴 곳 목록이 원 단위, 고정지출·구독 합계 제목도 원 단위(4.4: 목록 = 만) | 집계 목록·합계는 `만`, 거래 한 건·구독 한 건·고정지출 한 건은 `원` |
+| 6 | 색 — 의미색 남용 | 월별 막대가 `info`(파랑), 세부 화면 현재 달 막대도 `info`. 선택한 행 바탕이 `infoBg`. 의미색 mark/text 구분 없음 | 막대는 무채 잉크(고른 달 진하게·지난 달 옅게), 계획 넘은 부분만 `overMark`. 선택 행은 `surfaceMuted` + 굵게. 팔레트에 `overMark/underMark/infoMark` 추가 |
+| 7 | 색 — 여유 초록 | 생활비 계획 대비 행에서 95% 미만이면 차액이 초록(달 중간에도 "칭찬") | 7.4대로 `남은 X`는 `textSub`, 초과만 `X 초과` 빨강, ±5%는 `계획대로` |
+| 8 | 색만으로 전달 | KPI 숫자만 빨개지고 이유 글자 없음 | KPI 아래 줄에 `X 초과` 글자 |
+| 9 | Material 기본색 | `ColorScheme.fromSeed(info)`라 칩·세그먼트·버튼·진행 표시가 파랑 계열 | `primary = ink`, `error = overMark`, surface 계열을 팔레트로 고정(11장 체크리스트) |
+| 10 | 칩·세그먼트 | Material 기본 칩(체크 표시·테두리), `Wrap`으로 여러 줄. 세그먼트 사각 | 칩: 꺼짐 `surfaceMuted`+`textSub` / 켜짐 `ink`+`onInk`, 체크 없음, 라운드 8, 가로 한 줄 `ChipBar`. 세그먼트: 알약 + 선택 `ink` |
+| 11 | 사람 표시 | 구독 주인 배지가 파랑·장밋빛(=안내·초과로 읽힘) | 사용자 지정(파랑·빨강, Ninedogs와 같음)이라 색 유지. 팔레트 대신 `PersonColors` 토큰으로 옮김 |
+| 12 | 구획 제목 위치 | 제목이 카드 **밖** 위 줄(위 16 + 글자 + 4)에 있어 구획마다 한 줄씩 낭비 | `SectionCard`: 제목·요약이 카드 안 첫 줄(높이 28). 카드 사이 8 |
+| 13 | 좌우 정렬 | 선택한 행만 좌우 6 들여 써 글자가 흔들림. 목록 카드와 일반 카드의 글자 시작선이 다름 | 행은 늘 좌우 4, 목록 카드 안쪽 8 → 모든 카드의 글자 시작선 12로 통일. 숫자 오른쪽 정렬 + 판단 칸 폭 고정(`numCol`) |
+| 14 | 행 구분 | 마지막 행에도 아래 선 | `AmountRow.divider`, 마지막 행 선 없음. 줄무늬 없음 유지 |
+| 15 | 거래 목록 | 행이 카드 없이 바탕 위에 바로 놓임(다른 탭과 다름) | 행마다 흰 바탕을 이어 붙여 카드 한 장처럼(지연 생성 유지) |
+| 16 | 표 | 모든 달 칸이 ink w600, 머리·행 높이 숫자 하드코딩 | 고른 달 열만 ink w600, 지난 달 `textSub` w400, 계획 열 `textMuted`. 행 36·머리 28 토큰 |
+| 17 | 차트 | 눈금 점선 `[3,3]`, 막대 폭 14·12, 사방 라운드 3, 계획선 1px, 현재 달 X 라벨 구분 없음 | `AppChart` 토큰: 눈금 `[2,3]`, 막대 10·위쪽만 4, 계획선 1.5 `[4,3]`, 현재 달 라벨 ink w600, 축 라벨에 `만` |
+| 18 | 간격·모서리·크기 토큰 | `AppGap`에 xxs/snug/cozy 없음·xl 24(규칙 20), `AppRadius.md`=14(규칙 lg 14, md 10), `AppSize`에 행·칩·진행 바 없음 | 5장 표대로 다시 맞춤 + `AppAlpha`(흐림·지난 달·채움)·`AppChart` 추가 |
+| 19 | 하단 탭 | 선택 표시가 `surfaceMuted`(흰 바탕과 구분 안 됨), 글자색 상태 구분 없음 | 표시 `line`, 선택 아이콘·글자 `ink` w600 / 나머지 `textMuted` |
+| 20 | 그 밖 하드코딩 | 가족 코드 20 w700 자간 3, 업데이트 띠 13 w600, 온보딩 오류 12, 입력창 기본 테두리, 스낵바 기본색 | `AppText.code`·`label`·`caption`, 입력창 `surfaceMuted` 채움·라운드 8, 스낵바 `ink` 바탕 |
+| 21 | 공개 저장소 | 고정지출 안내 문구에 실제 카드 결제일이 들어 있었음 | 일반 문구로 바꿈 |
+| 22 | 규칙 테스트 | 하드코딩·대비를 잡는 테스트 없음 | `architecture_test`: features 의 `Color(0x…)`·`Colors.*`·`fontSize:`·`FontWeight.bold` 금지. `design_tokens_test`: 글자 대비 4.5:1(라이트·다크)·스케일. `design_widgets_test`: 폭 360 견본 라이트·다크 넘침 없음 |
+
+### 12.2 남긴 것 (이유)
+
+| 항목 | 이유 |
+|---|---|
+| Pretendard 번들·`tnum` 실기기 확인 | 이번 범위 밖(패키지·자산 추가 금지). 토큰 자리만 준비 |
+| `CategoryPalette`(분류색 17개)·분류 점 | 데이터가 아직 사용자 분류명(문자열)이라 `SpendCategory` 대응이 없음. 진행 바·막대는 그때까지 무채색 |
+| `ChartTheme` ThemeExtension | 지금은 `AppChart` 상수 + 팔레트로 충분. 차트가 늘면 옮김 |
+| KPI 구성 막대(원칙 2), 증감 `▲▼`(`DeltaText`) | 화면에 새 정보를 더하는 일이라 디자인 정리 범위를 넘음(M2 진단과 같이) |
+| 칩 높이 28 정확히 | `ChipThemeData`에 밀도 설정이 없어 지금 약 32. 칩 컴포넌트를 직접 만들 때 맞춤 |
+| 하단 알약 내비(`FloatingDock`)·`Breakpoint` 폭 구간 | 화면 틀 구조 변경이라 이번엔 기본 `NavigationBar` 유지. 화면 여백은 `AppGap.page` 16 고정 |
+| 거래 날짜 묶음 머리, 행 밀기 | 목록 구조 변경 |
+| 표 머리 아래 `lineStrong` | `DataTable`이 머리 아래 선 색을 따로 받지 않음. 표 컴포넌트를 만들 때 |
+| 사람 배지 원형 이니셜(16px) | 지금은 이름 글자 + 테두리 사각. 이름이 두 글자 이상이라 원에 안 들어감 — Ninedogs 쪽과 같이 정할 것 |

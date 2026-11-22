@@ -3,9 +3,7 @@ import 'package:flutter/material.dart';
 import '../format/won.dart';
 import 'tokens.dart';
 
-const _tabular = [FontFeature.tabularFigures()];
-
-/// 카드 한 장(흰 바탕, 둥근 모서리 14, 그림자 없음).
+/// 카드 한 장(흰 바탕, 둥근 모서리 14, 그림자 없음). 카드 사이 간격 8(위아래 4씩).
 class Panel extends StatelessWidget {
   const Panel({super.key, required this.child, this.padding = const EdgeInsets.all(AppGap.md)});
   final Widget child;
@@ -15,31 +13,89 @@ class Panel extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         margin: const EdgeInsets.symmetric(horizontal: AppGap.page, vertical: AppGap.xs),
         padding: padding,
-        decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(AppRadius.md)),
+        decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(AppRadius.lg)),
         child: child,
       );
 }
 
-/// 구획 제목 + 오른쪽 보조 글.
-class SectionTitle extends StatelessWidget {
-  const SectionTitle(this.title, {super.key, this.trailing});
-  final String title;
+/// 구획 카드(7.1 SectionCard): 머리(제목 · 오른쪽 요약)가 카드 **안** 첫 줄. 카드 밖 제목 줄을 없애 위아래 공간을 아낀다.
+/// [list] = 행 목록(AmountRow)을 담는 카드. 행이 좌우 4씩 들여 쓰므로 카드 안쪽은 8 — 글자 시작선은 어느 카드든 12로 같다.
+class SectionCard extends StatelessWidget {
+  const SectionCard({super.key, this.title, this.trailing, required this.child, this.list = false});
+  final String? title;
   final String? trailing;
+  final Widget child;
+  final bool list;
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context).textTheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(AppGap.page, AppGap.lg, AppGap.page, AppGap.xs),
-      child: Row(children: [
-        Expanded(child: Text(title, style: t.titleMedium)),
-        if (trailing != null) Text(trailing!, style: t.labelMedium),
+    final p = context.palette;
+    final inset = list ? AppGap.sm : AppGap.md;
+    final head = title == null
+        ? null
+        : Padding(
+            padding: EdgeInsets.symmetric(horizontal: list ? AppGap.xs : 0),
+            child: SizedBox(
+              height: AppSize.sectionHead,
+              child: Row(children: [
+                Flexible(child: Text(title!, style: AppText.title, overflow: TextOverflow.ellipsis)),
+                if (trailing != null) ...[
+                  const SizedBox(width: AppGap.sm),
+                  Expanded(
+                    child: Text(trailing!,
+                        textAlign: TextAlign.right,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.caption.copyWith(color: p.textSub)),
+                  ),
+                ],
+              ]),
+            ),
+          );
+    return Panel(
+      padding: EdgeInsets.fromLTRB(inset, head == null ? (list ? AppGap.xs : AppGap.md) : AppGap.sm, inset,
+          list ? AppGap.xs : AppGap.md),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        ?head,
+        if (head != null && !list) const SizedBox(height: AppGap.xs),
+        child,
       ]),
     );
   }
 }
 
-/// 요약 숫자 하나. 숫자 먼저, 라벨은 작게.
+/// 금액 글자(7.13 MoneyText): 숫자는 표 숫자, 끝의 단위(원·만·억)는 한 단계 작게 `textSub` — 숫자가 먼저 읽히게(4.2).
+class MoneyText extends StatelessWidget {
+  const MoneyText(this.text, {super.key, this.style = AppText.bodyStrong, this.color, this.tabular = true});
+  final String text;
+  final TextStyle style;
+  final Color? color;
+
+  /// 혼자 크게 보이는 KPI 숫자는 false(비례폭).
+  final bool tabular;
+
+  static final _unit = RegExp(r'^(.*\d)(원|만|억)$');
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final base = style.copyWith(color: color ?? p.ink, fontFeatures: tabular ? AppText.tabular : null);
+    final m = _unit.firstMatch(text);
+    if (m == null) return Text(text, style: base, maxLines: 1);
+    final unit = ((style.fontSize ?? 13) >= (AppText.numMd.fontSize ?? 18) ? AppText.body : AppText.caption)
+        .copyWith(fontWeight: FontWeight.w500, color: p.textSub);
+    return Text.rich(
+      TextSpan(children: [
+        TextSpan(text: m.group(1)),
+        TextSpan(text: m.group(2), style: unit),
+      ]),
+      style: base,
+      maxLines: 1,
+    );
+  }
+}
+
+/// 요약 숫자 하나. 숫자 먼저, 라벨은 작게. 숫자에 색을 줄 때는 [sub] 에 글자로도 판단을 쓴다(색만으로 전하지 않기).
 class KpiTile extends StatelessWidget {
   const KpiTile({super.key, required this.label, required this.value, this.sub, this.valueColor});
   final String label, value;
@@ -51,22 +107,24 @@ class KpiTile extends StatelessWidget {
     final p = context.palette;
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: AppGap.md, vertical: AppGap.sm + 2),
-        decoration: BoxDecoration(color: p.surface, borderRadius: BorderRadius.circular(AppRadius.md)),
+        padding: const EdgeInsets.symmetric(horizontal: AppGap.md, vertical: AppGap.cozy),
+        decoration: BoxDecoration(color: p.surface, borderRadius: BorderRadius.circular(AppRadius.lg)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: TextStyle(fontSize: 11, color: p.textMuted)),
-          const SizedBox(height: 2),
-          Text(value,
-              style: TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.w700, color: valueColor ?? p.ink, fontFeatures: _tabular)),
-          if (sub != null) Text(sub!, style: TextStyle(fontSize: 11, color: p.textSub)),
+          Text(label, style: AppText.caption.copyWith(color: p.textMuted), maxLines: 1, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: AppGap.xxs),
+          MoneyText(value, style: AppText.numMd, color: valueColor, tabular: false),
+          if (sub != null)
+            Text(sub!,
+                style: AppText.caption.copyWith(color: valueColor ?? p.textSub).tnum,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
         ]),
       ),
     );
   }
 }
 
-/// 계획 대비 실제 한 줄: 이름 · 막대(계획선 표시, 넘으면 빨강) · 실제/계획 · 차이.
+/// 계획 대비 실제 한 줄(7.4): 이름 · 쓴 금액 / 계획 · 판단(초과 / 남은 / 계획대로) + 진행 바(계획 눈금, 넘친 부분만 빨강).
 class BudgetRow extends StatelessWidget {
   const BudgetRow({super.key, required this.name, required this.actual, required this.plan, this.detail});
   final String name;
@@ -79,59 +137,71 @@ class BudgetRow extends StatelessWidget {
     final ratio = plan <= 0 ? 1.0 : actual / plan;
     final over = plan > 0 && actual > plan * 1.05;
     final under = plan > 0 && actual < plan * 0.95;
-    final color = over ? p.over : (under ? p.under : p.textSub);
     final diff = actual - plan;
+    // 여유는 색을 바꾸지 않는다(7.4) — 달 중간의 "덜 씀"을 초록으로 칭찬하지 않게.
+    final judge = plan <= 0
+        ? ''
+        : over
+            ? '${man(diff)} 초과'
+            : under
+                ? '남은 ${man(-diff)}'
+                : '계획대로';
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppGap.sm),
+      padding: const EdgeInsets.symmetric(vertical: AppGap.snug),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: Text(name, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600))),
-          Text('${man(actual)} / ${man(plan)}', style: TextStyle(fontSize: 12, color: p.textSub, fontFeatures: _tabular)),
-          const SizedBox(width: AppGap.sm),
+          Expanded(child: Text(name, style: AppText.body, overflow: TextOverflow.ellipsis)),
+          Text('${man(actual)} / ${man(plan)}', style: AppText.label.copyWith(color: p.ink).tnum),
           SizedBox(
-            width: 58,
+            width: AppSize.numCol,
             child: Text(
-              plan <= 0 ? '' : '${diff > 0 ? '+' : ''}${man(diff)}',
+              judge,
               textAlign: TextAlign.right,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color, fontFeatures: _tabular),
+              maxLines: 1,
+              style: AppText.caption.copyWith(color: over ? p.over : p.textSub).tnum,
             ),
           ),
         ]),
-        const SizedBox(height: 6),
+        const SizedBox(height: AppGap.xs),
         LayoutBuilder(builder: (context, c) {
           final w = c.maxWidth;
-          final scale = ratio > 1 ? 1 / ratio : 1.0; // 넘치면 계획선을 안쪽으로
+          final scale = ratio > 1 ? 1 / ratio : 1.0; // 넘치면 계획 눈금을 안쪽으로
           final planX = (w * scale).clamp(0.0, w);
           final fill = (w * (ratio > 1 ? 1.0 : ratio)).clamp(0.0, w);
+          final r = BorderRadius.circular(AppRadius.xs);
           return SizedBox(
-            height: 8,
+            height: AppSize.progress,
             child: Stack(children: [
-              Container(decoration: BoxDecoration(color: p.surfaceMuted, borderRadius: BorderRadius.circular(4))),
+              Container(decoration: BoxDecoration(color: p.surfaceMuted, borderRadius: r)),
               Container(
                   width: over ? planX : fill,
-                  decoration: BoxDecoration(color: p.textSub.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(4))),
+                  decoration: BoxDecoration(color: p.textSub.withValues(alpha: AppAlpha.barFill), borderRadius: r)),
               if (over)
                 Positioned(
                   left: planX,
                   child: Container(
                       width: (w - planX).clamp(0.0, w),
-                      height: 8,
-                      decoration: BoxDecoration(color: p.over, borderRadius: BorderRadius.circular(4))),
+                      height: AppSize.progress,
+                      decoration: BoxDecoration(color: p.overMark, borderRadius: r)),
                 ),
-              if (plan > 0) Positioned(left: (planX - 1).clamp(0.0, w - 2), child: Container(width: 2, height: 8, color: p.ink)),
+              if (plan > 0)
+                Positioned(
+                  left: (planX - AppSize.planTick / 2).clamp(0.0, w - AppSize.planTick),
+                  child: Container(width: AppSize.planTick, height: AppSize.progress, color: p.ink),
+                ),
             ]),
           );
         }),
         if (detail != null) ...[
-          const SizedBox(height: 4),
-          Text(detail!, style: TextStyle(fontSize: 11, color: p.textMuted)),
+          const SizedBox(height: AppGap.xs),
+          Text(detail!, style: AppText.caption.copyWith(color: p.textMuted)),
         ],
       ]),
     );
   }
 }
 
-/// ‹ 2026년 11월 › — 달 넘기기.
+/// ‹ 2026년 11월 › — 달 넘기기. 앱 바 자리(높이 44) 한 줄.
 class MonthSwitcher extends StatelessWidget {
   const MonthSwitcher({super.key, required this.month, required this.months, required this.onChanged, this.note});
   final String month;
@@ -141,20 +211,25 @@ class MonthSwitcher extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     final i = months.indexOf(month);
     final y = month.substring(0, 4), m = int.parse(month.substring(5));
-    final t = Theme.of(context).appBarTheme.titleTextStyle;
     return SizedBox(
       height: AppSize.appBar,
       child: Row(children: [
+        const SizedBox(width: AppGap.xs),
         IconButton(
           visualDensity: VisualDensity.compact,
+          iconSize: AppSize.navIcon,
+          color: p.ink,
           onPressed: i > 0 ? () => onChanged(months[i - 1]) : null,
           icon: const Icon(Icons.chevron_left),
         ),
-        Text('$y년 $m월', style: t),
+        Text('$y년 $m월', style: AppText.title.tnum),
         IconButton(
           visualDensity: VisualDensity.compact,
+          iconSize: AppSize.navIcon,
+          color: p.ink,
           onPressed: i >= 0 && i < months.length - 1 ? () => onChanged(months[i + 1]) : null,
           icon: const Icon(Icons.chevron_right),
         ),
@@ -162,14 +237,15 @@ class MonthSwitcher extends StatelessWidget {
         if (note != null)
           Padding(
             padding: const EdgeInsets.only(right: AppGap.page),
-            child: Text(note!, style: Theme.of(context).textTheme.labelMedium),
+            child: Text(note!, style: AppText.caption.copyWith(color: p.textSub)),
           ),
       ]),
     );
   }
 }
 
-/// 금액 한 줄 행(이름 · 보조 · 금액). 줄무늬 없이 아래 선만.
+/// 금액 한 줄 행(7.5): 이름 · 보조줄 · 금액(표 숫자, 오른쪽 정렬). 줄무늬 없이 아래 1px 선만, 마지막 행은 [divider] false.
+/// 좌우 4씩 들여 쓴다 — 선택 표시 바탕이 글자에 붙지 않고, 선택해도 글자 위치가 그대로다.
 class AmountRow extends StatelessWidget {
   const AmountRow({
     super.key,
@@ -181,6 +257,7 @@ class AmountRow extends StatelessWidget {
     this.onTap,
     this.selected = false,
     this.dimmed = false,
+    this.divider = true,
   });
   final String title;
   final String? sub;
@@ -195,40 +272,49 @@ class AmountRow extends StatelessWidget {
   /// 다른 항목에 포커스가 있을 때 흐리게.
   final bool dimmed;
 
+  /// 아래 1px 선. 목록의 마지막 행은 끈다.
+  final bool divider;
+
   @override
   Widget build(BuildContext context) {
     final row = _row(context);
     if (onTap == null) return row;
-    return InkWell(onTap: onTap, child: row);
+    return InkWell(onTap: onTap, borderRadius: BorderRadius.circular(AppRadius.md), child: row);
   }
 
   Widget _row(BuildContext context) {
     final p = context.palette;
-    final t = Theme.of(context).textTheme;
     return Opacity(
-      opacity: dimmed ? 0.45 : 1,
+      opacity: dimmed ? AppAlpha.dimmed : 1,
       child: Container(
-      constraints: const BoxConstraints(minHeight: AppSize.row),
-      padding: EdgeInsets.symmetric(vertical: 6, horizontal: selected ? 6 : 0),
-      decoration: BoxDecoration(
-        color: selected ? p.infoBg : null,
-        borderRadius: selected ? BorderRadius.circular(AppRadius.sm) : null,
-        border: selected ? null : Border(bottom: BorderSide(color: p.line)),
-      ),
-      child: Row(children: [
-        if (leading != null) ...[leading!, const SizedBox(width: AppGap.sm)],
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: t.bodyMedium, overflow: TextOverflow.ellipsis),
-            if (sub != null) Text(sub!, style: t.labelSmall, overflow: TextOverflow.ellipsis),
-          ]),
+        constraints: const BoxConstraints(minHeight: AppSize.row),
+        padding: const EdgeInsets.symmetric(vertical: AppGap.snug, horizontal: AppGap.xs),
+        // 선택은 판단이 아니므로 의미색(info) 대신 무채색 면.
+        decoration: BoxDecoration(
+          color: selected ? p.surfaceMuted : null,
+          borderRadius: selected ? BorderRadius.circular(AppRadius.md) : null,
+          border: selected || !divider ? null : Border(bottom: BorderSide(color: p.line)),
         ),
-        Text(amount,
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: amountColor ?? p.ink, fontFeatures: _tabular)),
-        if (onTap != null)
-          Icon(selected ? Icons.close : Icons.chevron_right, size: 16, color: selected ? p.info : p.textMuted),
-      ]),
-    ),
+        child: Row(children: [
+          if (leading != null) ...[leading!, const SizedBox(width: AppGap.sm)],
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title,
+                  style: selected ? AppText.bodyStrong : AppText.body, maxLines: 1, overflow: TextOverflow.ellipsis),
+              if (sub != null)
+                Text(sub!,
+                    style: AppText.caption.copyWith(color: p.textSub).tnum, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ]),
+          ),
+          const SizedBox(width: AppGap.sm),
+          MoneyText(amount, color: amountColor),
+          if (onTap != null)
+            Padding(
+              padding: const EdgeInsets.only(left: AppGap.xxs),
+              child: Icon(selected ? Icons.close : Icons.chevron_right, size: AppSize.icon, color: selected ? p.ink : p.textMuted),
+            ),
+        ]),
+      ),
     );
   }
 }

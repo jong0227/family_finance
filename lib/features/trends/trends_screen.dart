@@ -18,28 +18,31 @@ class TrendsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final months = ref.watch(monthsProvider).value ?? const <MonthAgg>[];
     final plan = ref.watch(planProvider).value;
+    final current = ref.watch(currentMonthProvider);
     final p = context.palette;
-    final t = Theme.of(context).textTheme;
     if (months.isEmpty) return const ComingSoon('추이', '아직 데이터가 없어요');
 
     final last12 = months.length > 12 ? months.sublist(months.length - 12) : months;
     final last6 = months.length > 6 ? months.sublist(months.length - 6) : months;
     final livingPlan = plan?.livingPlan ?? const <String, int>{};
-    final maxY = last12.map((m) => m.regular + m.oneOff).fold<int>(0, (a, b) => a > b ? a : b) / 10000 * 1.1;
+    final maxY = last12.map((m) => m.regular + m.oneOff).fold<int>(0, (a, b) => a > b ? a : b) / 10000 * AppChart.headroom;
+    final axis = AppText.micro.copyWith(color: p.textMuted).tnum;
 
     return ListView(
       padding: const EdgeInsets.only(bottom: AppGap.xl),
       children: [
         const PageHeader('추이'),
-        const SectionTitle('월별 지출', trailing: '만 원 · 진한 칸 = 평소, 옅은 칸 = 일회성'),
-        Panel(
+        SectionCard(
+          title: '월별 지출',
+          trailing: '진한 = 평소 · 옅은 = 일회성',
           child: SizedBox(
-            height: 180,
+            height: AppChart.height,
             child: BarChart(BarChartData(
-              maxY: maxY,
+              maxY: maxY <= 0 ? 1 : maxY,
               gridData: FlGridData(
                 drawVerticalLine: false,
-                getDrawingHorizontalLine: (_) => FlLine(color: p.line, strokeWidth: 1, dashArray: [3, 3]),
+                getDrawingHorizontalLine: (_) =>
+                    FlLine(color: p.line, strokeWidth: AppChart.gridStroke, dashArray: AppChart.gridDash),
               ),
               borderData: FlBorderData(show: false),
               titlesData: FlTitlesData(
@@ -48,8 +51,8 @@ class TrendsScreen extends ConsumerWidget {
                 leftTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
-                    reservedSize: 34,
-                    getTitlesWidget: (v, _) => Text(v.toStringAsFixed(0), style: TextStyle(fontSize: 10, color: p.textMuted)),
+                    reservedSize: AppChart.axisReserved,
+                    getTitlesWidget: (v, _) => Text('${v.toStringAsFixed(0)}만', style: axis),
                   ),
                 ),
                 bottomTitles: AxisTitles(
@@ -58,47 +61,59 @@ class TrendsScreen extends ConsumerWidget {
                     getTitlesWidget: (v, _) {
                       final i = v.toInt();
                       if (i < 0 || i >= last12.length) return const SizedBox.shrink();
+                      final now = last12[i].month == current;
                       return Text('${int.parse(last12[i].month.substring(5))}월',
-                          style: TextStyle(fontSize: 10, color: p.textMuted));
+                          style: now ? axis.copyWith(color: p.ink, fontWeight: FontWeight.w600) : axis);
                     },
                   ),
                 ),
               ),
+              // 색은 무채색 잉크만(6.2): 고른 달만 진하게, 지난 달은 옅게. 파랑(info)은 "안내" 뜻이라 막대에 쓰지 않는다.
               barGroups: [
                 for (var i = 0; i < last12.length; i++)
-                  BarChartGroupData(x: i, barRods: [
-                    BarChartRodData(
-                      toY: (last12[i].regular + last12[i].oneOff) / 10000,
-                      width: 14,
-                      borderRadius: BorderRadius.circular(3),
-                      rodStackItems: [
-                        BarChartRodStackItem(0, last12[i].regular / 10000, p.info),
-                        BarChartRodStackItem(last12[i].regular / 10000, (last12[i].regular + last12[i].oneOff) / 10000,
-                            p.info.withValues(alpha: 0.25)),
-                      ],
-                    ),
-                  ]),
+                  () {
+                    final m = last12[i];
+                    final now = m.month == current;
+                    final base = now ? p.ink : p.ink.withValues(alpha: AppAlpha.barFill);
+                    return BarChartGroupData(x: i, barRods: [
+                      BarChartRodData(
+                        toY: (m.regular + m.oneOff) / 10000,
+                        width: AppChart.barWidth,
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.xs)),
+                        rodStackItems: [
+                          BarChartRodStackItem(0, m.regular / 10000, base),
+                          BarChartRodStackItem(m.regular / 10000, (m.regular + m.oneOff) / 10000,
+                              p.ink.withValues(alpha: now ? AppAlpha.past : AppAlpha.faint)),
+                        ],
+                      ),
+                    ]);
+                  }(),
               ],
             )),
           ),
         ),
-        const SectionTitle('생활비 항목별 월 변화', trailing: '만 원 · 빨강 = 초과 · 눌러서 세부'),
-        Panel(
-          padding: const EdgeInsets.all(AppGap.sm),
+        SectionCard(
+          title: '생활비 항목별 월 변화',
+          trailing: '빨강 = 계획 초과 · 눌러서 세부',
+          list: true,
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: DataTable(
-              headingRowHeight: 30,
-              dataRowMinHeight: 32,
-              dataRowMaxHeight: 36,
-              horizontalMargin: 6,
-              columnSpacing: 14,
-              dividerThickness: 1,
-              headingTextStyle: TextStyle(fontSize: 11, color: p.textMuted, fontWeight: FontWeight.w600),
+              headingRowHeight: AppSize.tableHead,
+              dataRowMinHeight: AppSize.rowDense,
+              dataRowMaxHeight: AppSize.rowDense,
+              horizontalMargin: AppGap.xs,
+              columnSpacing: AppGap.md,
+              showCheckboxColumn: false,
               columns: [
                 const DataColumn(label: Text('항목')),
                 const DataColumn(label: Text('계획'), numeric: true),
-                for (final m in last6) DataColumn(label: Text('${int.parse(m.month.substring(5))}월'), numeric: true),
+                for (final m in last6)
+                  DataColumn(
+                    label: Text('${int.parse(m.month.substring(5))}월',
+                        style: m.month == current ? TextStyle(color: p.ink, fontWeight: FontWeight.w600) : null),
+                    numeric: true,
+                  ),
               ],
               rows: [
                 for (final g in livingGroups)
@@ -106,32 +121,37 @@ class TrendsScreen extends ConsumerWidget {
                     onSelectChanged: (_) => Navigator.of(context)
                         .push(MaterialPageRoute(builder: (_) => LivingDetailScreen(group: g))),
                     cells: [
-                    DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
-                      Text(livingLabels[g] ?? g, style: t.bodySmall?.copyWith(color: p.ink)),
-                      Icon(Icons.chevron_right, size: 14, color: p.textMuted),
-                    ])),
-                    DataCell(Text(man(livingPlan[g] ?? 0), style: t.bodySmall)),
-                    for (final m in last6)
-                      DataCell(Text(
-                        man(m.living[g] ?? 0),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: (livingPlan[g] ?? 0) > 0 && (m.living[g] ?? 0) > (livingPlan[g] ?? 0) * 1.05 && !m.partial
-                              ? p.over
-                              : p.ink,
-                        ),
-                      )),
-                  ]),
+                      DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text(livingLabels[g] ?? g, style: AppText.body),
+                        Icon(Icons.chevron_right, size: AppSize.icon, color: p.textMuted),
+                      ])),
+                      DataCell(Text(man(livingPlan[g] ?? 0),
+                          style: AppText.label.copyWith(color: p.textMuted, fontWeight: FontWeight.w400).tnum)),
+                      for (final m in last6) DataCell(_cell(context, m, livingPlan[g] ?? 0, m.living[g] ?? 0, current)),
+                    ],
+                  ),
               ],
             ),
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.all(AppGap.page),
-          child: Text('줄일 것 · 여유 있는 것 진단은 다음 단계(M2)에서 붙어요', style: t.labelSmall),
-        ),
+        const FootNote('줄일 것 · 여유 있는 것 진단은 다음 단계(M2)에서 붙어요'),
       ],
+    );
+  }
+
+  /// 표 칸(7.6): 고른 달 열만 ink w600, 지난 달은 textSub w400. 초과는 숫자만 빨강(칸 배경은 칠하지 않음).
+  static Widget _cell(BuildContext context, MonthAgg m, int plan, int actual, String? current) {
+    final p = context.palette;
+    final now = m.month == current;
+    final over = plan > 0 && actual > plan * 1.05 && !m.partial;
+    return Text(
+      man(actual),
+      style: AppText.label
+          .copyWith(
+            color: over ? p.over : (now ? p.ink : p.textSub),
+            fontWeight: now || over ? FontWeight.w600 : FontWeight.w400,
+          )
+          .tnum,
     );
   }
 }
