@@ -1,0 +1,33 @@
+# ---- 가계 데이터는 절대 커밋하지 않는다 (공개 저장소) ----
+*.xlsx
+*.xls
+*.csv
+*.pkl
+*.pdf
+data/
+private/
+imports/
+screenshots/
+*.jpg
+*.jpeg
+*.png
+!assets/**/*.png
+!docs/**/*.png
+# Firebase 서비스 계정·키
+service-account*.json
+*-adminsdk-*.json
+.env
+.env.*
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+.idea/
+.vscode/
+android/local.properties
+android/key.properties
+*.jks
+*.keystore
