@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "1056953711129",
+    "project_id": "ninedogs-b2628",
+    "storage_bucket": "ninedogs-b2628.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1056953711129:android:5af1def40afc95137c4888",
+        "android_client_info": {
+          "package_name": "com.family.finance"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA9fyudjbiav5re0HxBqcauVVj6UWUqw1k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1056953711129:android:9ede9f06859a65f47c4888",
+        "android_client_info": {
+          "package_name": "com.jong0227.ninedogs"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA9fyudjbiav5re0HxBqcauVVj6UWUqw1k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
