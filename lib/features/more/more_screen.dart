@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/session.dart';
+import '../../app/update.dart';
 import '../../core/design/components.dart';
 import '../../core/design/tokens.dart';
 import '../../core/design/widgets.dart';
@@ -38,6 +39,8 @@ class MoreScreen extends ConsumerWidget {
           Text('배우자는 이 앱과 Ninedogs 모두 구글로 로그인한 뒤 이 코드를 넣으면 같은 화면을 봐요', style: t.labelSmall),
         ]),
       ),
+      const SectionTitle('앱'),
+      Panel(child: _UpdateTile()),
       const SectionTitle('계정'),
       Panel(
         child: Row(children: [
@@ -55,6 +58,42 @@ class MoreScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(AppGap.page),
         child: Text('계획 편집 · 뱅크샐러드 가져오기 · 알림 읽기는 다음 단계에서 붙어요', style: t.labelSmall),
       ),
+    ]);
+  }
+}
+
+class _UpdateTile extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final version = ref.watch(appVersionProvider).value ?? '';
+    final update = ref.watch(availableUpdateProvider);
+    final progress = ref.watch(updateProgressProvider);
+    final t = Theme.of(context).textTheme;
+    final release = update.value;
+    final status = update.isLoading
+        ? '확인 중…'
+        : progress != null
+            ? '내려받는 중 ${(progress * 100).toStringAsFixed(0)}%'
+            : release != null
+                ? '새 버전 ${release.version} 있어요'
+                : '최신 버전이에요';
+    return Row(children: [
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('버전 $version', style: t.bodyMedium),
+          Text(status, style: t.labelSmall),
+        ]),
+      ),
+      if (release != null && progress == null)
+        FilledButton(
+          onPressed: () => ref.read(updateProgressProvider.notifier).install(context, release),
+          child: const Text('업데이트'),
+        )
+      else
+        TextButton(
+          onPressed: progress == null ? () => ref.invalidate(availableUpdateProvider) : null,
+          child: const Text('다시 확인'),
+        ),
     ]);
   }
 }

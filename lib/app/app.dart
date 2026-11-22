@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/design/theme.dart';
+import '../core/design/update_banner.dart';
 import '../features/home/home_screen.dart';
 import '../features/more/more_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
@@ -54,7 +55,12 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        body: SafeArea(child: IndexedStack(index: _index, children: _pages)),
+        body: SafeArea(
+          child: Column(children: [
+            const UpdateBanner(),
+            Expanded(child: IndexedStack(index: _index, children: _pages)),
+          ]),
+        ),
         bottomNavigationBar: NavigationBar(
           selectedIndex: _index,
           onDestinationSelected: (i) => setState(() => _index = i),
