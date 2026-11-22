@@ -218,6 +218,7 @@ financeInvites/{code}                   [F] 가계 초대 코드(만료·한 번
 **`subscriptionLinks/{subId}`** — 구독 문서와 같은 id. 구독이 지워지면 고아가 된다 → 화면에서 숨기고 30일 뒤 정리(거래의 `cls.subscriptionId`는 남겨 "삭제된 구독"으로 표시).
 ```
 { v:1, cardId?, planItemId?,
+  owner?: 'me'|'spouse'|'shared',          // 누구의 구독인가 (같은 서비스 2개 구분). Ninedogs 문서엔 칸이 없어 여기에만 둔다
   matcher:{ merchantContains:[string], amountTolerancePct:int, dayTolerance:int },
   lastCharge?:{ ref:'tx'|'live', id, date, amount:int },
   watch:{ enabled:bool, lastCheckedMonth?, mutedUntil? },
