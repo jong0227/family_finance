@@ -171,21 +171,50 @@ class MonthSwitcher extends StatelessWidget {
 
 /// 금액 한 줄 행(이름 · 보조 · 금액). 줄무늬 없이 아래 선만.
 class AmountRow extends StatelessWidget {
-  const AmountRow({super.key, required this.title, this.sub, required this.amount, this.amountColor, this.leading});
+  const AmountRow({
+    super.key,
+    required this.title,
+    this.sub,
+    required this.amount,
+    this.amountColor,
+    this.leading,
+    this.onTap,
+    this.selected = false,
+    this.dimmed = false,
+  });
   final String title;
   final String? sub;
   final String amount;
   final Color? amountColor;
   final Widget? leading;
 
+  /// 누르면 이 항목에 포커스(다시 누르면 해제). null 이면 누를 수 없는 줄.
+  final VoidCallback? onTap;
+  final bool selected;
+
+  /// 다른 항목에 포커스가 있을 때 흐리게.
+  final bool dimmed;
+
   @override
   Widget build(BuildContext context) {
+    final row = _row(context);
+    if (onTap == null) return row;
+    return InkWell(onTap: onTap, child: row);
+  }
+
+  Widget _row(BuildContext context) {
     final p = context.palette;
     final t = Theme.of(context).textTheme;
-    return Container(
+    return Opacity(
+      opacity: dimmed ? 0.45 : 1,
+      child: Container(
       constraints: const BoxConstraints(minHeight: AppSize.row),
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: p.line))),
+      padding: EdgeInsets.symmetric(vertical: 6, horizontal: selected ? 6 : 0),
+      decoration: BoxDecoration(
+        color: selected ? p.infoBg : null,
+        borderRadius: selected ? BorderRadius.circular(AppRadius.sm) : null,
+        border: selected ? null : Border(bottom: BorderSide(color: p.line)),
+      ),
       child: Row(children: [
         if (leading != null) ...[leading!, const SizedBox(width: AppGap.sm)],
         Expanded(
@@ -196,7 +225,10 @@ class AmountRow extends StatelessWidget {
         ),
         Text(amount,
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: amountColor ?? p.ink, fontFeatures: _tabular)),
+        if (onTap != null)
+          Icon(selected ? Icons.close : Icons.chevron_right, size: 16, color: selected ? p.info : p.textMuted),
       ]),
+    ),
     );
   }
 }

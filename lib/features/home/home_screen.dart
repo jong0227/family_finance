@@ -9,11 +9,19 @@ import '../../domain/finance_models.dart';
 import '../trends/living_detail_screen.dart';
 
 /// 이번 달 — 계획 대비 생활비, 분류별 지출. "무엇에 많이 썼나"가 먼저.
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  /// "무엇에 썼나"에서 고른 분류(포커스). null 이면 전체.
+  String? _focus;
+
+  @override
+  Widget build(BuildContext context) {
     final months = ref.watch(monthsProvider);
     final plan = ref.watch(planProvider).value;
     final current = ref.watch(currentMonthProvider);
@@ -71,21 +79,63 @@ class HomeScreen extends ConsumerWidget {
                   ),
               ]),
             ),
-            SectionTitle('무엇에 썼나', trailing: '일회성 제외'),
+            SectionTitle('무엇에 썼나', trailing: _focus == null ? '일회성 제외 · 눌러서 그 분류만' : '다시 누르면 전체'),
             Panel(
               padding: const EdgeInsets.symmetric(horizontal: AppGap.md, vertical: AppGap.xs),
               child: Column(children: [
-                for (final e in cats.take(10))
+                for (final e in cats)
                   AmountRow(
                     title: e.key,
                     sub: m.regular > 0 ? '${(e.value * 100 / m.regular).toStringAsFixed(0)}%' : null,
                     amount: won(e.value),
+                    selected: _focus == e.key,
+                    dimmed: _focus != null && _focus != e.key,
+                    onTap: () => setState(() => _focus = _focus == e.key ? null : e.key),
                   ),
               ]),
             ),
+            if (_focus != null) _CategoryFocus(month: m.month, category: _focus!),
           ],
         );
       },
     );
+  }
+}
+
+/// 포커스된 분류 안에서 많이 쓴 곳과 거래 (그 달, 일회성 제외).
+class _CategoryFocus extends ConsumerWidget {
+  const _CategoryFocus({required this.month, required this.category});
+  final String month, category;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final txs = ref.watch(transactionsProvider(month)).value ?? const [];
+    final p = context.palette;
+    final shown = txs.where((x) => x.kind == '소비' && !x.oneOff && x.category == category).toList();
+    final merchants = <String, int>{};
+    for (final x in shown) {
+      merchants[x.merchantKey] = (merchants[x.merchantKey] ?? 0) - x.amount;
+    }
+    final top = merchants.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      SectionTitle('많이 쓴 곳 · $category', trailing: '${merchants.length}곳'),
+      Panel(
+        padding: const EdgeInsets.symmetric(horizontal: AppGap.md, vertical: AppGap.xs),
+        child: Column(children: [for (final e in top.take(10)) AmountRow(title: e.key, amount: won(e.value))]),
+      ),
+      SectionTitle('거래 · $category', trailing: '${shown.length}건'),
+      Panel(
+        padding: const EdgeInsets.symmetric(horizontal: AppGap.md, vertical: AppGap.xs),
+        child: Column(children: [
+          for (final x in shown)
+            AmountRow(
+              title: x.merchant,
+              sub: '${x.date.substring(5).replaceAll('-', '/')} · ${x.payment}',
+              amount: won(-x.amount),
+              amountColor: x.amount > 0 ? p.under : null,
+            ),
+        ]),
+      ),
+    ]);
   }
 }

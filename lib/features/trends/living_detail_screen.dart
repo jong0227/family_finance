@@ -9,12 +9,21 @@ import '../../core/format/won.dart';
 import '../../domain/finance_models.dart';
 
 /// 생활비 항목 하나의 세부 — 12개월 추이(계획선) · 이번 달 구성 · 많이 쓴 곳 · 거래.
-class LivingDetailScreen extends ConsumerWidget {
+class LivingDetailScreen extends ConsumerStatefulWidget {
   const LivingDetailScreen({super.key, required this.group});
   final String group;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LivingDetailScreen> createState() => _LivingDetailScreenState();
+}
+
+class _LivingDetailScreenState extends ConsumerState<LivingDetailScreen> {
+  /// "무엇에 썼나"에서 고른 구성(포커스). null 이면 전체.
+  String? _focus;
+
+  @override
+  Widget build(BuildContext context) {
+    final group = widget.group;
     final txs = ref.watch(livingTxProvider(group));
     final months = ref.watch(monthsProvider).value ?? const <MonthAgg>[];
     final plan = ref.watch(planProvider).value?.livingPlan[group] ?? 0;
@@ -49,6 +58,13 @@ class LivingDetailScreen extends ConsumerWidget {
             merchants[x.merchantKey] = (merchants[x.merchantKey] ?? 0) - x.amount;
           }
           final partList = parts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+          final focus = parts.containsKey(_focus) ? _focus : null;
+          final shown = focus == null ? inMonth : inMonth.where((x) => x.livingPart == focus).toList();
+          final shownTotal = shown.fold<int>(0, (a, x) => a - x.amount);
+          merchants.clear();
+          for (final x in shown) {
+            merchants[x.merchantKey] = (merchants[x.merchantKey] ?? 0) - x.amount;
+          }
           final topMerchants = merchants.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
           final maxY = [...byMonth.values, plan].fold<int>(0, (a, b) => a > b ? a : b) / 10000 * 1.15;
 
@@ -116,7 +132,7 @@ class LivingDetailScreen extends ConsumerWidget {
                 )),
               ),
             ),
-            const SectionTitle('무엇에 썼나'),
+            SectionTitle('무엇에 썼나', trailing: focus == null ? '눌러서 그 항목만 보기' : '다시 누르면 전체'),
             Panel(
               padding: const EdgeInsets.symmetric(horizontal: AppGap.md, vertical: AppGap.xs),
               child: Column(children: [
@@ -125,22 +141,25 @@ class LivingDetailScreen extends ConsumerWidget {
                     title: e.key,
                     sub: total > 0 ? '${(e.value * 100 / total).toStringAsFixed(0)}%' : null,
                     amount: won(e.value),
+                    selected: focus == e.key,
+                    dimmed: focus != null && focus != e.key,
+                    onTap: () => setState(() => _focus = focus == e.key ? null : e.key),
                   ),
                 if (partList.isEmpty) Padding(padding: const EdgeInsets.all(AppGap.md), child: Text('이 달 거래가 없어요', style: t.labelMedium)),
               ]),
             ),
-            const SectionTitle('많이 쓴 곳'),
+            SectionTitle(focus == null ? '많이 쓴 곳' : '많이 쓴 곳 · $focus', trailing: focus == null ? null : won(shownTotal)),
             Panel(
               padding: const EdgeInsets.symmetric(horizontal: AppGap.md, vertical: AppGap.xs),
               child: Column(children: [
-                for (final e in topMerchants.take(5)) AmountRow(title: e.key, amount: won(e.value)),
+                for (final e in topMerchants.take(focus == null ? 5 : 10)) AmountRow(title: e.key, amount: won(e.value)),
               ]),
             ),
-            SectionTitle('거래', trailing: '${inMonth.length}건'),
+            SectionTitle(focus == null ? '거래' : '거래 · $focus', trailing: '${shown.length}건'),
             Panel(
               padding: const EdgeInsets.symmetric(horizontal: AppGap.md, vertical: AppGap.xs),
               child: Column(children: [
-                for (final x in inMonth)
+                for (final x in shown)
                   AmountRow(
                     title: x.merchant,
                     sub: '${x.date.substring(5).replaceAll('-', '/')} · ${x.livingPart} · ${x.payment}',
