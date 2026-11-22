@@ -8,6 +8,7 @@ import '../data/finance_store.dart';
 import '../data/shared/shared_household_store.dart';
 import '../domain/diagnosis.dart';
 import '../domain/finance_models.dart';
+import '../domain/plan_edit.dart';
 
 /// main() 에서 미리 열어 덮어쓴다.
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) => throw UnimplementedError());
@@ -122,3 +123,56 @@ final kidCategoriesProvider = NotifierProvider<KidCategoriesNotifier, Set<String
 final allLivingTxProvider = Provider<List<Tx>>((ref) => [
       for (final g in livingGroups) ...(ref.watch(livingTxProvider(g)).value ?? const <Tx>[]),
     ]);
+
+final accountsProvider = StreamProvider<List<AccountRef>>((ref) {
+  final id = ref.watch(householdIdProvider);
+  if (id == null) return Stream.value(const []);
+  return ref.watch(financeStoreProvider).watchAccounts(id);
+});
+
+/// 서버에서 본 가장 높은 계약 버전. 이 앱(kContractVersion)보다 높으면 구독 쓰기를 막는다.
+final contractVersionProvider = StreamProvider<int>((ref) {
+  final id = ref.watch(householdIdProvider);
+  if (id == null) return Stream.value(kContractVersion);
+  return ref.watch(sharedStoreProvider).watchContractVersion(id);
+});
+
+/// 구독 읽기 전용 여부(더 새로운 계약 버전이 서버에 있음).
+final subscriptionsReadOnlyProvider =
+    Provider<bool>((ref) => (ref.watch(contractVersionProvider).value ?? kContractVersion) > kContractVersion);
+
+/// 계획 편집 동작 — 화면은 이것만 부른다(data 를 직접 import 하지 않음).
+class PlanActions {
+  PlanActions(this._ref);
+  final Ref _ref;
+
+  Future<void> _edit(PlanTransform t) {
+    final hid = _ref.read(householdIdProvider);
+    if (hid == null) throw const PlanEditError('가구가 연결돼 있지 않아요');
+    return _ref.read(financeStoreProvider).editPlan(hid, t, by: _ref.read(userProvider).value?.uid);
+  }
+
+  Future<void> update(String itemId, PlanItemFields f) => _edit((d) => updatePlanItem(d, itemId, f));
+
+  Future<void> add(String group, String category, String name, PlanItemFields f) {
+    final id = newPlanItemId();
+    return _edit((d) => addPlanItem(d, group: group, category: category, name: name, fields: f, newId: id));
+  }
+
+  Future<void> delete(String itemId) => _edit((d) => deletePlanItem(d, itemId));
+}
+
+final planActionsProvider = Provider<PlanActions>(PlanActions.new);
+
+/// 구독 쓰기 동작. 계약 버전이 높으면 [ContractTooNewException].
+class SubscriptionActions {
+  SubscriptionActions(this._ref);
+  final Ref _ref;
+
+  String _hid() => _ref.read(householdIdProvider) ?? (throw StateError('가구가 연결돼 있지 않아요'));
+
+  Future<void> save(Subscription s) => _ref.read(sharedStoreProvider).saveSubscription(_hid(), s);
+  Future<void> delete(String id) => _ref.read(sharedStoreProvider).deleteSubscription(_hid(), id);
+}
+
+final subscriptionActionsProvider = Provider<SubscriptionActions>(SubscriptionActions.new);

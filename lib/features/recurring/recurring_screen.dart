@@ -7,6 +7,8 @@ import '../../core/design/components.dart';
 import '../../core/design/tokens.dart';
 import '../../core/design/widgets.dart';
 import '../../core/format/won.dart';
+import 'plan_item_sheet.dart';
+import 'subscription_sheet.dart';
 
 /// 정기 — 고정지출(계획, 결제 카드 → 출금 통장) │ 구독(Ninedogs 와 같은 데이터).
 class RecurringScreen extends ConsumerStatefulWidget {
@@ -60,6 +62,7 @@ class _RecurringScreenState extends ConsumerState<RecurringScreen> {
         child: Column(children: [
           for (final (n, i) in items.indexed)
             AmountRow(
+              onTap: () => showPlanItemSheet(context, item: i, plan: plan),
               title: i.name,
               sub: [
                 i.category,
@@ -72,7 +75,18 @@ class _RecurringScreenState extends ConsumerState<RecurringScreen> {
             ),
         ]),
       ),
-      const FootNote('→ 통장: 그 카드값이 빠지는 통장'),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppGap.page),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () => showPlanItemSheet(context, plan: plan, initialGroup: _group),
+            icon: const Icon(Icons.add, size: AppSize.icon),
+            label: const Text('항목 추가'),
+          ),
+        ),
+      ),
+      const FootNote('→ 통장: 그 카드값이 빠지는 통장 · 항목을 누르면 고쳐요'),
     ]);
   }
 
@@ -86,7 +100,10 @@ class _RecurringScreenState extends ConsumerState<RecurringScreen> {
         final active = all.where((s) => s.isActive).toList()
           ..sort((a, b) => b.monthlyCost.minor.compareTo(a.monthlyCost.minor));
         final total = active.where((s) => s.currency == Money.krw).fold<int>(0, (sum, s) => sum + s.monthlyCost.minor);
+        final readOnly = ref.watch(subscriptionsReadOnlyProvider);
         return ListView(padding: const EdgeInsets.only(top: AppGap.xs, bottom: AppGap.xl), children: [
+          if (readOnly)
+            const Padding(padding: EdgeInsets.symmetric(horizontal: AppGap.page), child: ReadOnlyBanner()),
           SectionCard(
             title: '월 ${man(total)}',
             trailing: '구독 ${active.length}개 · Ninedogs 와 같은 데이터',
@@ -94,6 +111,7 @@ class _RecurringScreenState extends ConsumerState<RecurringScreen> {
             child: Column(children: [
               for (final (i, s) in active.indexed)
                 AmountRow(
+                  onTap: () => showSubscriptionSheet(context, sub: s),
                   title: s.name,
                   leading: s.owner == null ? null : OwnerBadge(name: people.nameOf(s.owner!), owner: s.owner!),
                   sub: [s.cycle.label, if ((s.paymentMethod ?? '').isNotEmpty) s.paymentMethod!].join(' · '),
@@ -101,6 +119,17 @@ class _RecurringScreenState extends ConsumerState<RecurringScreen> {
                   divider: i < active.length - 1,
                 ),
             ]),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppGap.page),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: readOnly ? null : () => showSubscriptionSheet(context),
+                icon: const Icon(Icons.add, size: AppSize.icon),
+                label: const Text('구독 추가'),
+              ),
+            ),
           ),
         ]);
       },

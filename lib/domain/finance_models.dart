@@ -63,6 +63,7 @@ class PlanItem {
     required this.payDayText,
     required this.living,
     required this.note,
+    this.accountId,
   });
 
   final String id, group, category, name;
@@ -70,11 +71,23 @@ class PlanItem {
   final int? recentActual;
   final String payment;
   final String? accountName, payDayText, living, note;
+
+  /// 출금 통장 id (편집 시트의 선택값). 이름은 [accountName].
+  final String? accountId;
+}
+
+/// 통장 한 줄 (계획 편집에서 출금 통장을 고를 때).
+class AccountRef {
+  const AccountRef(this.id, this.name);
+  final String id, name;
 }
 
 class Plan {
-  const Plan(this.items);
+  const Plan(this.items, {this.categories = const []});
   final List<PlanItem> items;
+
+  /// 비어 있는 지출 분류까지 포함한 (구분, 지출 분류) 목록. 항목 추가 시트가 고른다.
+  final List<({String group, String category})> categories;
 
   int get total => items.fold(0, (a, i) => a + i.monthlyAmount);
 
@@ -92,10 +105,12 @@ class Plan {
 
   factory Plan.fromJson(Map<String, Object?> j, Map<String, String> accountNames) {
     final items = <PlanItem>[];
+    final cats = <({String group, String category})>[];
     for (final g in (j['groups'] as List? ?? const [])) {
       final gm = g as Map;
       for (final c in (gm['categories'] as List? ?? const [])) {
         final cm = c as Map;
+        cats.add((group: gm['name'] as String, category: cm['name'] as String));
         for (final it in (cm['items'] as List? ?? const [])) {
           final im = (it as Map).cast<String, Object?>();
           if (im['deleted'] == true) continue;
@@ -109,6 +124,7 @@ class Plan {
             recentActual: (im['recentActual'] as num?)?.toInt(),
             payment: im['payment'] as String? ?? '',
             accountName: accountNames[im['accountId']],
+            accountId: im['accountId'] as String?,
             payDayText: im['payDayText'] as String?,
             living: im['living'] as String?,
             note: im['note'] as String?,
@@ -116,7 +132,7 @@ class Plan {
         }
       }
     }
-    return Plan(items);
+    return Plan(items, categories: cats);
   }
 }
 
