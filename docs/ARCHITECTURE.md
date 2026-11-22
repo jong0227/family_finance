@@ -184,7 +184,7 @@ households/{hid}                        [N] 가구 (Ninedogs 모양 그대로: i
   notificationTemplates/{id}            [F] 알림 파서 템플릿
   txIndex/{YYYY-MM}                     [F] 월 색인
   months/{YYYY-MM}                      [F] 월 집계
-  rules/{ruleId}                        [F] 분류 규칙
+  financeMeta/rules                     [F] 분류 규칙 한 벌(순서 있는 목록, 9.2)
   questions/{qid}                       [F] 확인 질문 큐
   imports/{importId}                    [F] 가져오기 기록
     changes/{chunkNo}                   [F] 되돌리기용 변경 전 상태
@@ -255,9 +255,10 @@ financeInvites/{code}                   [F] 가계 초대 코드(만료·한 번
 | `fp` | string | 원본 지문(가변 필드 포함 해시) |
 | `status` | string | 'active' / 'missing' / 'superseded' / 'deleted' |
 | `supersededBy` | string? | 수정본 키 |
-| `cls` | map | `kind`, `categoryId?`, `itemId?`, `subscriptionId?`, `by:'rule'|'manual'|'default'|'live'`, `ruleId?`, `oneOff`, `oneOffBy`, `linkTo?` |
+| `cls` | map | `kind`, `categoryId?`, `living?`, `itemId?`, `subscriptionId?`, `by:'rule'|'manual'|'default'|'live'`, `ruleId?`, `oneOff`, `oneOffBy`, `linkTo?` |
 | `liveId` | string? | 대조된 임시 거래 |
 | `coupangDay` | string? | 쪼개기 대상 날짜 |
+| `tags` | string[]? | 규칙 조건 `tag`가 보는 꼬리표(예: `coupangFresh`) |
 | `import` | map | `first`, `last` importId |
 | `updatedAt`, `updatedBy` | | |
 문서당 약 0.6KB, 1년 ≈ 4MB.
@@ -272,7 +273,7 @@ financeInvites/{code}                   [F] 가계 초대 코드(만료·한 번
 ```
 liveId = `lv_` + sha1(templateId | at(분) | amount | merchant | kind) 앞 20자 → 같은 알림이 두 번 와도 같은 문서. **알림 원문 필드는 없다.**
 
-**`notificationTemplates`** 12.3, **`txIndex/{m}`** `{keys:{<txKey>:<fp>}, count}`, **`months/{m}`** 13장, **`rules`** 9.2, **`questions`** 9.4,
+**`notificationTemplates`** 12.3, **`txIndex/{m}`** `{keys:{<txKey>:<fp>}, count}`, **`months/{m}`** 13장, **`financeMeta/rules`** 9.2, **`questions`** 9.4,
 **`imports`·`changes`** 8장, **`coupangDays`·`ocrCaptures`** 11장, **`installments`** 13.3.
 
 **`financeInvites/{code}`** — `{householdId, createdBy, createdAt, expiresAt, usedBy?, usedAt?}`. 8자리, 48시간, 한 번만.
@@ -543,18 +544,26 @@ txKey      = 'bs_' + base32(sha1(naturalKey)).substring(0, 20) + '_' + n      //
 | `tax` 세금 | 지출(별도 구분 가능) | |
 | `income` / `familyTransfer` / `cash` / `other` | 각자 줄 | |
 
-### 9.2 규칙 (`rules/{ruleId}`, 사용자 데이터)
+### 9.2 규칙 (`financeMeta/rules` 문서 하나 — 순서 있는 목록, 사용자 데이터)
+규칙 한 벌은 문서 하나다(`{ v:1, consumptionKind, rules:[...] }`, 수백 개여도 1MB 미만). 질문에서 생기는 규칙·직접 만든 규칙은 같은 목록의 `override` 규칙으로 앞쪽에 쌓인다. 코드: `lib/domain/classify/`(`rule.dart` 모델, `rule_codec.dart` JSON, `classify_engine.dart` 엔진, `month_totals.dart` 월 집계).
 ```
-{ priority:int,                      // 질문에서 생긴 규칙 500, 직접 만든 규칙 700
-  when: { type?, merchantContains?:[string], merchantEquals?, merchantRegex?, major?, minor?,
-          paymentIn?:[string], accountId?, cardId?, amountEq?, amountMin?, amountMax?,
-          dayOfMonth?:{from,to}, dateFrom?, dateTo?, memoContains?:[string], coupangItem?:bool },
-  then: { kind?, categoryId?, itemId?, subscriptionId?, oneOff?, installmentMonths?, coupangSplit? },
-  origin:'question'|'manual', sourceQuestionId?, enabled, hits, lastHitAt?, createdBy, createdAt }
+{ id, note?, enabled?:true, priority?:0, override?:false,
+  when: { type, major, minor, merchantEquals, merchantContains, merchantStartsWith, merchantRegex,
+          paymentIn, paymentStartsWith, paymentContains, accountId, cardId, tag, memoContains,   // 문자열 또는 목록 = 하나라도 맞으면 참
+          amountEq|Min|Max, amountAbsEq|Min|Max,           // 원, 부호 포함 / 절댓값, 경계 포함
+          dateFrom, dateTo, dayOfMonth:{from,to},          // 'YYYY-MM-DD' 경계 포함
+          kind, categoryId, oneOff,                        // 앞선 규칙이 이미 정한 값을 보는 조건
+          anyOf:[when], not:when },                        // 위 조건은 모두 AND, anyOf = OR, not = 부정
+  then: { kind?, categoryId?, living?, oneOff? } }         // 키가 있으면 채움(null 도 "없음으로 확정")
 ```
-- `classify(tx, rules, defaults)` 순수 함수. 우선순위 → 조건 개수 → 만든 시각. `then` 필드는 따로 채운다.
-- **기본 규칙**(코드): 뱅크샐러드 대분류 "카드대금"·"내계좌이체"·"저축"·"투자"·"대출상환" → 해당 kind, 수입 "환불" → refund, 나머지 지출 → spend + 대분류를 임시 분류로. **가맹점·사람 이름은 기본 규칙에 넣지 않는다**(예외: 구독 카탈로그 별칭 — 공개 정보).
+- `classify(tx, ruleSet)` 순수 함수. **순서가 우선순위**다(`priority`가 있으면 큰 것 먼저, 같으면 목록 순서). 일반 규칙은 비어 있는 필드만 채우고(먼저 채운 규칙이 이긴다), `override` 규칙은 일반 규칙이 채운 값도 덮는다(덮어쓰기끼리는 먼저 쓴 쪽이 이김). `then`에 `kind`가 있으면 "판정 묶음" — kind를 못 채우면 그 규칙은 통째로 건너뛴다.
+- 읽는 순서: kind 규칙 -> 분류(`kind` 조건) -> 덮어쓰기 -> 일회성(`oneOff`) -> 생활비 묶음(`living`, `oneOff:false` 조건). 조건 `kind`·`categoryId`·`oneOff`는 앞선 규칙의 결과를 보므로 그 값을 정하는 규칙 뒤에 둔다.
+- `kind`·`categoryId`·`living`은 **사용자 분류 체계의 이름 그대로**(문자열)다. 엔진은 이름을 모른다. 집계에서 "소비"로 치는 kind만 `consumptionKind`로 알려 준다. 위 9.1 표의 영문 id는 개념 설명이다.
+- `tag`: 거래 문서의 `tags`(예: 쿠팡 로켓프레시 상품 `coupangFresh`)를 본다. 쪼갠 쿠팡 상품은 가맹점 접두어 + 키워드 규칙으로 분류한다.
+- JSON 읽기는 모르는 키·타입 오류를 거부한다(오타가 조건을 조용히 빼는 것 방지).
+- **기본 규칙**(코드): 뱅크샐러드 대분류 "카드대금"·"내계좌이체"·"저축"·"투자"·"대출상환" -> 해당 kind, 수입 "환불" -> 환불, 나머지 지출 -> 소비 + 대분류를 임시 분류로. **가맹점·사람 이름은 기본 규칙에 넣지 않는다**(예외: 구독 카탈로그 별칭 — 공개 정보). 개인 규칙 전체는 Firebase에만 있고 이 저장소에는 가짜 규칙 테스트만 있다.
 - 수동 판단 > 사용자 규칙 > 기본 규칙. 규칙을 고치면 걸리는 기존 거래 일괄 적용(미리보기, 수동 판단 제외). `hits`는 커밋 때 모아서.
+- **동일성 검사**: `dart run tool/classify_check.dart <rules.json> <tx_dump.json>` — 저장소 밖 규칙·거래 덤프를 읽어 기존 분류와 거래별·월별로 비교하고 건수만 출력한다.
 
 ### 9.3 플래그
 - **일회성**: spend & |금액| ≥ `oneOffThreshold`(기본 100만 원) → 자동, 사용자가 바꾸면 `manual`. 집계는 "경상"과 "전체" 둘 다.
