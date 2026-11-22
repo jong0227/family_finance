@@ -6,6 +6,7 @@ import '../../core/design/tokens.dart';
 import '../../core/design/widgets.dart';
 import '../../core/format/won.dart';
 import '../../domain/finance_models.dart';
+import '../trends/living_detail_screen.dart';
 
 /// 이번 달 — 계획 대비 생활비, 분류별 지출. "무엇에 많이 썼나"가 먼저.
 class HomeScreen extends ConsumerWidget {
@@ -59,10 +60,14 @@ class HomeScreen extends ConsumerWidget {
             Panel(
               child: Column(children: [
                 for (final g in livingGroups)
-                  BudgetRow(
-                    name: livingLabels[g] ?? g,
-                    actual: m.living[g] ?? 0,
-                    plan: livingPlan[g] ?? 0,
+                  InkWell(
+                    onTap: () => Navigator.of(context)
+                        .push(MaterialPageRoute(builder: (_) => LivingDetailScreen(group: g))),
+                    child: BudgetRow(
+                      name: livingLabels[g] ?? g,
+                      actual: m.living[g] ?? 0,
+                      plan: livingPlan[g] ?? 0,
+                    ),
                   ),
               ]),
             ),

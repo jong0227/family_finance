@@ -8,6 +8,7 @@ import '../../core/design/tokens.dart';
 import '../../core/design/widgets.dart';
 import '../../core/format/won.dart';
 import '../../domain/finance_models.dart';
+import 'living_detail_screen.dart';
 
 /// 추이 — 월별 지출과 생활비 항목별 월 변화.
 class TrendsScreen extends ConsumerWidget {
@@ -81,7 +82,7 @@ class TrendsScreen extends ConsumerWidget {
             )),
           ),
         ),
-        const SectionTitle('생활비 항목별 월 변화', trailing: '만 원 · 빨강 = 계획 초과'),
+        const SectionTitle('생활비 항목별 월 변화', trailing: '만 원 · 빨강 = 초과 · 눌러서 세부'),
         Panel(
           padding: const EdgeInsets.all(AppGap.sm),
           child: SingleChildScrollView(
@@ -101,8 +102,14 @@ class TrendsScreen extends ConsumerWidget {
               ],
               rows: [
                 for (final g in livingGroups)
-                  DataRow(cells: [
-                    DataCell(Text(livingLabels[g] ?? g, style: t.bodySmall?.copyWith(color: p.ink))),
+                  DataRow(
+                    onSelectChanged: (_) => Navigator.of(context)
+                        .push(MaterialPageRoute(builder: (_) => LivingDetailScreen(group: g))),
+                    cells: [
+                    DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text(livingLabels[g] ?? g, style: t.bodySmall?.copyWith(color: p.ink)),
+                      Icon(Icons.chevron_right, size: 14, color: p.textMuted),
+                    ])),
                     DataCell(Text(man(livingPlan[g] ?? 0), style: t.bodySmall)),
                     for (final m in last6)
                       DataCell(Text(

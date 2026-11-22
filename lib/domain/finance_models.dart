@@ -132,13 +132,44 @@ class Tx {
     required this.category,
     required this.payment,
     required this.oneOff,
+    this.minor = '',
+    this.living,
   });
 
   final String key, date, time, merchant, kind, category, payment;
+  final String minor;
+  final String? living;
   final int amount;
   final bool oneOff;
 
   String get sortKey => '$date $time';
+  String get month => date.length >= 7 ? date.substring(0, 7) : '';
+
+  /// 생활비 묶음 안에서 "무엇에 썼나" 구성 이름 (보고서와 같은 나눔).
+  String get livingPart {
+    switch (living) {
+      case '잡화':
+        if (category.startsWith('의류')) return '의류·백화점';
+        if (category.startsWith('가정용품')) return '생활·가정용품';
+        if (merchant.contains('내역 미확인') || merchant.startsWith('쿠팡(쿠페이)')) return '쿠팡 (내역 미확인)';
+        return '쿠팡 (확인된 상품)';
+      case '외식·카페':
+        return minor == '커피/음료' ? '커피·카페' : '식당 외식';
+      case '식료품·반찬':
+        return merchant.startsWith('쿠팡') ? '쿠팡 식품' : '마트·장보기';
+      case '배달':
+        return '배달앱';
+      case '간식':
+        return '빵·아이스크림·디저트';
+    }
+    return category;
+  }
+
+  /// 가맹점 이름을 묶기 좋게 (쿠팡 상품명 앞머리 정리).
+  String get merchantKey {
+    if (merchant.contains('내역 미확인') || merchant.startsWith('쿠팡(쿠페이)')) return '쿠팡 (내역 미확인)';
+    return merchant.replaceFirst('쿠팡 · ', '쿠팡 ');
+  }
 
   factory Tx.fromJson(String key, Map<String, Object?> j) {
     final src = (j['src'] as Map? ?? const {}).cast<String, Object?>();
@@ -153,6 +184,8 @@ class Tx {
       category: cls['categoryId'] as String? ?? '',
       payment: src['payment'] as String? ?? '',
       oneOff: cls['oneOff'] == true,
+      minor: src['minor'] as String? ?? '',
+      living: cls['living'] as String?,
     );
   }
 }

@@ -82,6 +82,12 @@ final currentMonthProvider = Provider<String?>((ref) {
   return months.isEmpty ? null : months.last.month;
 });
 
+final livingTxProvider = StreamProvider.family<List<Tx>, String>((ref, group) {
+  final id = ref.watch(householdIdProvider);
+  if (id == null) return Stream.value(const []);
+  return ref.watch(financeStoreProvider).watchLiving(id, group);
+});
+
 final transactionsProvider = StreamProvider.family<List<Tx>, String>((ref, month) {
   final id = ref.watch(householdIdProvider);
   if (id == null) return Stream.value(const []);
