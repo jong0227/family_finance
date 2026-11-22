@@ -215,10 +215,14 @@ financeInvites/{code}                   [F] 가계 초대 코드(만료·한 번
 
 **`financeMembers/{uid}`** — `displayName`(앱에서 정한 호칭), `role`('owner'|'member'), `joinedAt`, `inviteCode?`(참여 검증용), `liveDevice?:{enabled, lastEventAt}`. 구글 이메일·사진 저장 안 함.
 
+**구독 주인(owner) — Ninedogs v1.6.0에서 공유 계약에 들어감 (2026-11-22)**
+- 구독 문서의 `owner: 'a'|'b'|null`(null = 공동). 사람 이름은 `households/{id}/meta/people` `{ names: { a, b } }`.
+- 색은 칸에 고정(a=파랑, b=빨강 계열). family_finance도 같은 필드·문서를 읽고, 사람별 합계에 쓴다.
+- v1.5.0 이하 Ninedogs는 저장 때 owner를 지우므로, 두 기기 모두 v1.6.0 이상이어야 한다(N3의 `meta/clients`로 확인).
+
 **`subscriptionLinks/{subId}`** — 구독 문서와 같은 id. 구독이 지워지면 고아가 된다 → 화면에서 숨기고 30일 뒤 정리(거래의 `cls.subscriptionId`는 남겨 "삭제된 구독"으로 표시).
 ```
 { v:1, cardId?, planItemId?,
-  owner?: 'me'|'spouse'|'shared',          // 누구의 구독인가 (같은 서비스 2개 구분). Ninedogs 문서엔 칸이 없어 여기에만 둔다
   matcher:{ merchantContains:[string], amountTolerancePct:int, dayTolerance:int },
   lastCharge?:{ ref:'tx'|'live', id, date, amount:int },
   watch:{ enabled:bool, lastCheckedMonth?, mutedUntil? },
