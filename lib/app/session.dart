@@ -6,9 +6,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../data/auth_service.dart';
 import '../data/finance_store.dart';
 import '../data/shared/shared_household_store.dart';
+import '../domain/cash_check.dart';
 import '../domain/diagnosis.dart';
 import '../domain/finance_models.dart';
 import '../domain/plan_edit.dart';
+import '../domain/tx_note.dart';
 
 /// main() 에서 미리 열어 덮어쓴다.
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) => throw UnimplementedError());
@@ -176,3 +178,55 @@ class SubscriptionActions {
 }
 
 final subscriptionActionsProvider = Provider<SubscriptionActions>(SubscriptionActions.new);
+
+/// 결제일 현금 점검 입력(월별, 부부 실시간 공유).
+final cashCheckInputProvider = StreamProvider.family<CashCheckInput, String>((ref, month) {
+  final id = ref.watch(householdIdProvider);
+  if (id == null) return Stream.value(const CashCheckInput());
+  return ref.watch(financeStoreProvider).watchCashCheck(id, month);
+});
+
+/// 현금 점검 입력·거래 메모 쓰기 — 화면은 이것만 부른다.
+class FinanceNoteActions {
+  FinanceNoteActions(this._ref);
+  final Ref _ref;
+
+  String _hid() => _ref.read(householdIdProvider) ?? (throw StateError('가구가 연결돼 있지 않아요'));
+  String? get _uid => _ref.read(userProvider).value?.uid;
+
+  /// 내 uid (메모 작성자 표시용: 나 / 배우자).
+  String? get myUid => _uid;
+
+  Future<void> setBalance(String month, String accountId, int? balance) =>
+      _ref.read(financeStoreProvider).setCashBalance(_hid(), month, accountId, balance, by: _uid);
+
+  Future<void> setExcluded(String month, String accountId, bool excluded) =>
+      _ref.read(financeStoreProvider).setCashExcluded(_hid(), month, accountId, excluded, by: _uid);
+
+  Future<void> saveNote(String txKey, String note, List<String> tags) => _ref
+      .read(financeStoreProvider)
+      .setTxNote(_hid(), txKey, notePayload(note: note, tags: tags, by: _uid));
+}
+
+final financeNoteActionsProvider = Provider<FinanceNoteActions>(FinanceNoteActions.new);
+
+/// 현금 점검 결과 (선택한 달 기준). 계획이 없으면 null.
+final cashCheckProvider = Provider.family<CashCheckResult?, String>((ref, month) {
+  final plan = ref.watch(planProvider).value;
+  if (plan == null) return null;
+  final input = ref.watch(cashCheckInputProvider(month)).value ?? const CashCheckInput();
+  final names = {for (final a in ref.watch(accountsProvider).value ?? const <AccountRef>[]) a.id: a.name};
+  return computeCashCheck(
+      month: month,
+      plan: plan,
+      balances: input.balances,
+      excluded: input.excluded,
+      accountNames: names,
+      cards: {for (final c in ref.watch(cardsProvider).value ?? const <CardRef>[]) c.id: c});
+});
+
+final cardsProvider = StreamProvider<List<CardRef>>((ref) {
+  final id = ref.watch(householdIdProvider);
+  if (id == null) return Stream.value(const []);
+  return ref.watch(financeStoreProvider).watchCards(id);
+});

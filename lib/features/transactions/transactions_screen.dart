@@ -6,6 +6,7 @@ import '../../core/design/components.dart';
 import '../../core/design/tokens.dart';
 import '../../core/design/widgets.dart';
 import '../../core/format/won.dart';
+import 'tx_note_sheet.dart';
 
 /// 거래 — 고른 달의 거래 목록. 기본은 소비만.
 class TransactionsScreen extends ConsumerStatefulWidget {
@@ -57,9 +58,12 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                     borderRadius: BorderRadius.vertical(top: first ? r : Radius.zero, bottom: last ? r : Radius.zero),
                   ),
                   child: AmountRow(
+                    onTap: () => showTxNoteSheet(context, t),
                     title: t.merchant,
                     sub: '${t.date.substring(5).replaceAll('-', '/')} · ${t.kind == '소비' ? t.category : t.kind} · ${t.payment}'
-                        '${t.oneOff ? ' · 일회성' : ''}',
+                        '${t.oneOff ? ' · 일회성' : ''}'
+                        '${t.note.isEmpty ? '' : ' · ${t.note}'}'
+                        '${t.userTags.isEmpty ? '' : ' · ${t.userTags.map((x) => '#$x').join(' ')}'}',
                     amount: txWon(t.amount),
                     amountColor: t.amount > 0 ? p.under : null,
                     divider: !last,

@@ -7,6 +7,9 @@ import '../../app/update.dart';
 import '../../core/design/components.dart';
 import '../../core/design/tokens.dart';
 import '../../core/design/widgets.dart';
+import '../checkup/cash_check_screen.dart';
+import '../checkup/month_report_screen.dart';
+import '../checkup/timeline_screen.dart';
 
 /// 더보기 — 계정, 가족 코드, 로그아웃. (계획 편집·알림 읽기·설정은 다음 단계)
 class MoreScreen extends ConsumerWidget {
@@ -19,6 +22,14 @@ class MoreScreen extends ConsumerWidget {
     final p = context.palette;
     return ListView(children: [
       const PageHeader('더보기'),
+      SectionCard(
+        title: '점검',
+        child: Column(children: [
+          _NavTile('결제일 현금 점검', '통장별 빠질 돈 vs 직접 입력한 잔액', const CashCheckScreen()),
+          _NavTile('할부·대형 지출 타임라인', '앞으로 6개월, 계획 항목 기준', const TimelineScreen()),
+          _NavTile('월말 점검 리포트', '계획 대비 · 많이 쓴 곳 · 일회성 · 진단', const MonthReportScreen()),
+        ]),
+      ),
       SectionCard(
         title: '가족',
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -93,4 +104,20 @@ class _UpdateTile extends ConsumerWidget {
         ),
     ]);
   }
+}
+
+class _NavTile extends StatelessWidget {
+  const _NavTile(this.title, this.sub, this.target);
+  final String title, sub;
+  final Widget target;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+        dense: true,
+        contentPadding: EdgeInsets.zero,
+        title: Text(title, style: AppText.body),
+        subtitle: Text(sub, style: AppText.caption.copyWith(color: context.palette.textSub)),
+        trailing: Icon(Icons.chevron_right, size: AppSize.icon, color: context.palette.textMuted),
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => target)),
+      );
 }

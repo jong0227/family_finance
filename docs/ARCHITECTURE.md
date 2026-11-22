@@ -246,6 +246,10 @@ financeInvites/{code}                   [F] 가계 초대 코드(만료·한 번
 
 **`cards/{cardId}`** — `nickname`, `issuer`, `last4?`, `payDay:int`, `usage:{fromDay, fromPrevMonth:bool, toDay}`, `withdrawalAccountId`, `bsAliases`, `liveAliases`, `deleted`.
 
+**`cashCheck/{YYYY-MM}`** (S1 결제일 현금 점검 입력, 직접 입력한 값만) — `balances:{<accountId>:int}`(그 달 점검용 잔액, 실시간 잔액 아님), `excluded:{<accountId>:true}`(쓸 수 없는 돈 표시), `updatedAt`, `updatedBy`. 통장 단위 필드를 `set(merge)`로 쓰고(지우기는 `FieldValue.delete`), 부부가 실시간으로 같이 본다. 규칙은 가계 하위 문서 공통 규칙이 적용된다.
+
+**거래 메모·태그 (S9)** — `transactions/{txKey}`에 `note:string`, `userTags:list<string>`, `noteBy:uid`, `noteAt:ts` 네 필드만 `update()`로 쓴다(`src`·`cls`·기존 `tags`는 건드리지 않음). 코드: `domain/tx_note.dart` + `FinanceStore.setTxNote`.
+
 **`transactions/{txKey}`**
 | 필드 | 타입 | 설명 |
 |---|---|---|

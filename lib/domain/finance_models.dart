@@ -64,6 +64,7 @@ class PlanItem {
     required this.living,
     required this.note,
     this.accountId,
+    this.cardId,
   });
 
   final String id, group, category, name;
@@ -74,6 +75,9 @@ class PlanItem {
 
   /// 출금 통장 id (편집 시트의 선택값). 이름은 [accountName].
   final String? accountId;
+
+  /// 결제 카드 id (있으면 카드 결제 항목).
+  final String? cardId;
 }
 
 /// 통장 한 줄 (계획 편집에서 출금 통장을 고를 때).
@@ -125,6 +129,7 @@ class Plan {
             payment: im['payment'] as String? ?? '',
             accountName: accountNames[im['accountId']],
             accountId: im['accountId'] as String?,
+            cardId: im['cardId'] as String?,
             payDayText: im['payDayText'] as String?,
             living: im['living'] as String?,
             note: im['note'] as String?,
@@ -150,11 +155,19 @@ class Tx {
     required this.oneOff,
     this.minor = '',
     this.living,
+    this.note = '',
+    this.userTags = const [],
+    this.noteBy,
   });
 
   final String key, date, time, merchant, kind, category, payment;
   final String minor;
   final String? living;
+
+  /// 부부 메모·태그(S9). 원본 src/cls 와 별개 필드.
+  final String note;
+  final List<String> userTags;
+  final String? noteBy;
   final int amount;
   final bool oneOff;
 
@@ -202,6 +215,9 @@ class Tx {
       oneOff: cls['oneOff'] == true,
       minor: src['minor'] as String? ?? '',
       living: cls['living'] as String?,
+      note: j['note'] as String? ?? '',
+      userTags: [for (final t in (j['userTags'] as List? ?? const [])) if (t is String) t],
+      noteBy: j['noteBy'] as String?,
     );
   }
 }
