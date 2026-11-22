@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../data/auth_service.dart';
 import '../data/finance_store.dart';
 import '../data/shared/shared_household_store.dart';
+import '../domain/diagnosis.dart';
 import '../domain/finance_models.dart';
 
 /// main() 에서 미리 열어 덮어쓴다.
@@ -93,3 +94,31 @@ final transactionsProvider = StreamProvider.family<List<Tx>, String>((ref, month
   if (id == null) return Stream.value(const []);
   return ref.watch(financeStoreProvider).watchTransactions(id, month);
 });
+
+/// 진단 결과 (계획 + 완전한 달 최근 6개월). 계획이 없으면 null.
+final diagnosisProvider = Provider<DiagnosisResult?>((ref) {
+  final plan = ref.watch(planProvider).value;
+  final months = ref.watch(monthsProvider).value;
+  if (plan == null || months == null) return null;
+  return diagnose(plan: plan, months: months);
+});
+
+/// 아이별 지출에서 고른 항목(계획 분류 `c:…`, 생활비 구성 `p:…`) — 기기에 기억. 처음엔 비어 있다.
+class KidCategoriesNotifier extends Notifier<Set<String>> {
+  static const _key = 'kid_selection_v2';
+
+  @override
+  Set<String> build() => ref.watch(sharedPreferencesProvider).getStringList(_key)?.toSet() ?? const {};
+
+  Future<void> set(Set<String> value) async {
+    state = value;
+    await ref.read(sharedPreferencesProvider).setStringList(_key, value.toList());
+  }
+}
+
+final kidCategoriesProvider = NotifierProvider<KidCategoriesNotifier, Set<String>>(KidCategoriesNotifier.new);
+
+/// 생활비 묶음 전체의 거래(구성별 월 지출용). 묶음마다 이미 구독 중인 [livingTxProvider] 를 모은다.
+final allLivingTxProvider = Provider<List<Tx>>((ref) => [
+      for (final g in livingGroups) ...(ref.watch(livingTxProvider(g)).value ?? const <Tx>[]),
+    ]);

@@ -8,11 +8,13 @@ import '../../core/design/tokens.dart';
 import '../../core/design/widgets.dart';
 import '../../core/format/won.dart';
 import '../../domain/finance_models.dart';
+import 'diagnosis_view.dart';
+import 'kids_view.dart';
 import 'living_detail_screen.dart';
 
 /// 추이 — 월별 지출과 생활비 항목별 월 변화.
-class TrendsScreen extends ConsumerWidget {
-  const TrendsScreen({super.key});
+class _TrendsList extends ConsumerWidget {
+  const _TrendsList();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -20,7 +22,7 @@ class TrendsScreen extends ConsumerWidget {
     final plan = ref.watch(planProvider).value;
     final current = ref.watch(currentMonthProvider);
     final p = context.palette;
-    if (months.isEmpty) return const ComingSoon('추이', '아직 데이터가 없어요');
+    if (months.isEmpty) return const Center(child: Text('아직 데이터가 없어요'));
 
     final last12 = months.length > 12 ? months.sublist(months.length - 12) : months;
     final last6 = months.length > 6 ? months.sublist(months.length - 6) : months;
@@ -31,7 +33,7 @@ class TrendsScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.only(bottom: AppGap.xl),
       children: [
-        const PageHeader('추이'),
+
         SectionCard(
           title: '월별 지출',
           trailing: '진한 = 평소 · 옅은 = 일회성',
@@ -134,7 +136,6 @@ class TrendsScreen extends ConsumerWidget {
             ),
           ),
         ),
-        const FootNote('줄일 것 · 여유 있는 것 진단은 다음 단계(M2)에서 붙어요'),
       ],
     );
   }
@@ -154,4 +155,32 @@ class TrendsScreen extends ConsumerWidget {
           .tnum,
     );
   }
+}
+
+/// 추이 탭: 추이 │ 진단 │ 아이별 (SCREENS 2.2·2.4, S7).
+class TrendsScreen extends StatefulWidget {
+  const TrendsScreen({super.key});
+
+  @override
+  State<TrendsScreen> createState() => _TrendsScreenState();
+}
+
+class _TrendsScreenState extends State<TrendsScreen> {
+  int _tab = 0;
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        PageHeader('추이',
+            trailing: SegmentedButton<int>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: 0, label: Text('추이')),
+                ButtonSegment(value: 1, label: Text('진단')),
+                ButtonSegment(value: 2, label: Text('아이별')),
+              ],
+              selected: {_tab},
+              onSelectionChanged: (s) => setState(() => _tab = s.first),
+            )),
+        Expanded(child: IndexedStack(index: _tab, children: const [_TrendsList(), DiagnosisView(), KidsView()])),
+      ]);
 }
